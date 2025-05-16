@@ -1,0 +1,91 @@
+[project]
+name = "adk-agentic-quantum"
+description = "Agentic Workflow using Google's ADK"
+requires-python = ">=3.11, <3.12"
+dependencies = [
+    "pydantic-settings>=2.8.1",
+    "tabulate>=0.9.0",
+    "cloudpickle>=3.1.1",
+    "pylint>=3.3.6",
+    "google-cloud-aiplatform[adk,agent_engine]>=1.88.0",
+    "xmltodict",
+    "pathlib",
+    "xml_utils"
+]
+
+dynamic = ['version']
+
+[project.optional-dependencies]
+dev = [
+        "pytest>=8.3.5",
+        "pytest-mock>=3.14.0",
+        "scikit-learn>=1.6.1",
+        "pytest-cov>=6.0.0",
+        "pytest-asyncio>=0.25.3",
+        "flake8-pyproject>=1.2.3",
+        "pylint>=3.3.6",
+        "pyink>=24.10.1",
+        "google-cloud-aiplatform[evaluation]>=1.88.0",
+    ]
+test = [
+]
+
+ci = [
+]
+
+[build-system]
+requires = ["setuptools>=72.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where =["src"]
+include = ["enterprise_rating*"]
+
+[tool.setuptools.dynamic]
+version = { file = "version.txt" }
+
+[tool.pytest.ini_options]
+testpaths = [ "tests" ]
+pythonpath = [ "." ]
+markers = [
+    "unit"
+]
+log_level="ERROR"
+log_cli=false
+log_auto_indent=true
+log_cli_date_format="%Y-%m-%d %H:%M:%S"
+log_cli_format ="[%(asctime)s] %(levelname)s (%(funcName)s) \t [%(pathname)s:%(lineno)d] %(message)s"
+filterwarnings = [
+    "ignore::UserWarning",
+]
+
+
+[tool.ruff]
+line-length = 120
+lint.select = [
+    "F",    # pyflakes rules
+    "E",    # pycodestyle error rules
+    "W",    # pycodestyle warning rules
+    "B",    # flake8-bugbear rules
+    "I",    # isort rules
+    "UP",   # pyupgrade rules
+    "SIM",  # flake8-simplify rules
+    "ERA",  # eradicate rules
+    "C",    # pylint convention rules
+    "D",    # pydocstyle rules
+    "ANN"   # flake8-annotations rules
+]
+lint.ignore = [
+    "D107", # Missing docstring in `__init__`
+    "D203", # incorrect-blank-line-before-class
+    "D213", # multi-line-summary-second-line
+    "E501", # line-too-long
+    "C901", # too complex
+    "D100", #TODO: fix errors to remove this from ignore
+    "ERA001", #TODO: fix errors to remove this from ignore
+    "D104" #TODO: fix errors to remove this from ignore
+]
+
+[tool.ruff.format]
+indent-style = "space"
+docstring-code-format = true
