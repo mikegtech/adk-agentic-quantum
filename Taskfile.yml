@@ -37,6 +37,85 @@ tasks:
     cmd: task -l
     silent: true
 
+  run-nim:
+      desc: "Launch the Llama 3.1 Nemotron Ultra container with GPU support"
+      # ensure the cache dir exists
+      # nvcr.io/nim/nvidia/llama-3.1-nemotron-ultra-253b-v1:latest
+      cmds:
+        - mkdir -p "{{.LOCAL_NIM_CACHE}}"
+        - |
+          docker run -it --rm \
+            --gpus all \
+            --shm-size=16GB \
+            -e NGC_API_KEY \
+            -v "{{.LOCAL_NIM_CACHE}}:/opt/nim/.cache" \
+            -u "$(id -u)" \
+            -p 8000:8000 \
+            nvcr.io/nim/nvidia/llama-3.1-nemotron-nano-8b-v1:latest
+  run-deepseek:
+      desc: "Launch the Llama 3.1 Nemotron Ultra container with GPU support"
+      # ensure the cache dir exists
+      # nvcr.io/nim/nvidia/llama-3.1-nemotron-ultra-253b-v1:latest
+      cmds:
+        - mkdir -p "{{.LOCAL_NIM_CACHE}}"
+        - |
+          docker run -it --rm \
+            --gpus all \
+            --shm-size=16GB \
+            -e NGC_API_KEY \
+            -v "{{.LOCAL_NIM_CACHE}}:/opt/nim/.cache" \
+            -u "$(id -u)" \
+            -p 8000:8000 \
+            nvcr.io/nim/deepseek-ai/deepseek-r1-distill-llama-8b:1.5.2
+  run-llama-3:
+    cmds:
+      - |
+        docker run -it --rm \
+          --gpus all \
+          --shm-size=16GB \
+          -e NGC_API_KEY \
+          -e PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True \
+          -e NIM_ENABLE_CHUNKED_PREFILL=False \
+          -e NIM_BLOCK_SIZE=8 \
+          -e NIM_MODEL_PROFILE=4f904d571fe60ff24695b5ee2aa42da58cb460787a968f1e8a09f5a7e862728d \
+          -v "$LOCAL_NIM_CACHE:/opt/nim/.cache" \
+          -u "$(id -u)" \
+          -p 8000:8000 \
+          nvcr.io/nim/deepseek-ai/deepseek-r1-distill-llama-8b:1.5.2
+
+  run-mistral-7b:
+    cmds:
+      - |
+        docker run -it --rm \
+            --gpus all \
+            --shm-size=16GB \
+            -e NGC_API_KEY \
+            -v "$LOCAL_NIM_CACHE:/opt/nim/.cache" \
+            -u $(id -u) \
+            -p 8000:8000 \
+            nvcr.io/nim/nvidia/nv-embedqa-mistral-7b-v2:1.0.1
+  run-mistral-7b-hf:
+    cmds:
+      - |
+        docker run --rm --gpus all \
+          --name adk-agentic-quantum-mistral-hf \
+          -v ~/.cache/huggingface:/root/.cache/huggingface \
+          -e HUGGING_FACE_HUB_TOKEN \
+          -p 8001:8000 \
+          --ipc=host \
+          vllm/vllm-openai:latest \
+          --model mistralai/Mistral-7B-Instruct-v0.1 \
+          --gpu-memory-utilization 0.95 \
+          --no-enable-chunked-prefill \
+          --max-model-len=4096
+
+  run-cuda:
+      cmds:
+        - |
+          ddocker run --rm --gpus all \                                            1 ↵
+            --entrypoint nvidia-smi \
+            vllm/vllm-openai:latest
+            
   default:
     cmds:
       - task: help
