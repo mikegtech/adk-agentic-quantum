@@ -34,7 +34,7 @@ from .shared_libraries.callbacks import (
     before_tool,
     after_tool,
 )
-from .tools.rating_tools import (          # ← file created in previous step
+from .tools.tools import (          # ← file created in previous step
     vector_search,
     fetch_xml_fragment,
     diff_versions,

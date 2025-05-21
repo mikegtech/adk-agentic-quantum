@@ -29,4 +29,4 @@ class ProgramVersionRepository:
             return None
             
         # Let Pydantic coerce types, apply defaults, and validate
-        return ProgramVersion.parse_obj(progVer)        
+        return ProgramVersion.parse_obj(progVer)
