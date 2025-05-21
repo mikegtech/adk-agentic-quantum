@@ -11,8 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""
-Agent module for **QuantumRate Navigator** (rating-system POC).
+"""Agent module for **QuantumRate Navigator** (rating-system POC).
 
 The root agent receives natural-language questions about legacy Insbridge
 programs, invokes retrieval / diff / calculation tools, and streams a sourced
@@ -29,19 +28,19 @@ from google.adk import Agent
 from .config import Config
 from .prompts import GLOBAL_INSTRUCTION, INSTRUCTION
 from .shared_libraries.callbacks import (
-    rate_limit_callback,
+    after_tool,
     before_agent,
     before_tool,
-    after_tool,
+    rate_limit_callback,
 )
-from .tools.tools import (          # ← file created in previous step
-    vector_search,
-    fetch_xml_fragment,
+from .tools.tools import (  # ← file created in previous step
     diff_versions,
+    export_change_report,
+    fetch_xml_fragment,
     list_rate_tables,
     run_sample_premium,
     validate_instruction,
-    export_change_report,
+    vector_search,
 )
 
 warnings.filterwarnings("ignore", category=UserWarning, module=".*pydantic.*")
@@ -50,10 +49,10 @@ cfg = Config()
 logger = logging.getLogger(__name__)
 
 rating_agent = Agent(
-    model=cfg.agent_settings.model,          # e.g. "nv-llama3-8b-instruct"
-    name=cfg.agent_settings.name,            # e.g. "QuantumRate-Agent"
-    global_instruction=GLOBAL_INSTRUCTION,   # system-level guardrails
-    instruction=INSTRUCTION,                 # conversation-level prompt
+    model=cfg.agent_settings.model,  # e.g. "nv-llama3-8b-instruct"
+    name=cfg.agent_settings.name,  # e.g. "QuantumRate-Agent"
+    global_instruction=GLOBAL_INSTRUCTION,  # system-level guardrails
+    instruction=INSTRUCTION,  # conversation-level prompt
     tools=[
         vector_search,
         fetch_xml_fragment,

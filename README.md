@@ -5,15 +5,15 @@
 ---
 
 ## Table of Contents
-1. [Project Goals](#project-goals)  
-2. [Architecture](#architecture)  
-3. [Quick Start](#quick-start)  
-4. [Repository Layout](#repository-layout)  
-5. [Configuration](#configuration)  
-6. [Development Workflow](#development-workflow)  
-7. [Testing](#testing)  
-8. [Troubleshooting](#troubleshooting)  
-9. [Contributing](#contributing)  
+1. [Project Goals](#project-goals)
+2. [Architecture](#architecture)
+3. [Quick Start](#quick-start)
+4. [Repository Layout](#repository-layout)
+5. [Configuration](#configuration)
+6. [Development Workflow](#development-workflow)
+7. [Testing](#testing)
+8. [Troubleshooting](#troubleshooting)
+9. [Contributing](#contributing)
 10. [License](#license)
 
 ---

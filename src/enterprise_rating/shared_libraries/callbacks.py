@@ -16,13 +16,13 @@
 
 import logging
 import time
+from typing import Any
 
 from google.adk.agents.callback_context import CallbackContext
-from google.adk.models import LlmRequest
-from typing import Any, Dict, Optional, Tuple
-from google.adk.tools import BaseTool
 from google.adk.agents.invocation_context import InvocationContext
+from google.adk.models import LlmRequest
 from google.adk.sessions.state import State
+from google.adk.tools import BaseTool
 from google.adk.tools.tool_context import ToolContext
 from jsonschema import ValidationError
 
@@ -36,32 +36,26 @@ RATE_LIMIT_SECS = 60
 RPM_QUOTA = 10
 
 
-def rate_limit_callback(
-    callback_context: CallbackContext, llm_request: LlmRequest
-) -> None:
+def rate_limit_callback(callback_context: CallbackContext, llm_request: LlmRequest) -> None:
     """Callback function that implements a query rate limit.
 
     Args:
       callback_context: A CallbackContext obj representing the active callback
         context.
       llm_request: A LlmRequest obj representing the active LLM request.
+
     """
     for content in llm_request.contents:
         for part in content.parts:
-            if part.text=="":
-                part.text=" "
-
-    
-    
+            if part.text == "":
+                part.text = " "
 
     now = time.time()
     if "timer_start" not in callback_context.state:
-
         callback_context.state["timer_start"] = now
         callback_context.state["request_count"] = 1
         logger.debug(
-            "rate_limit_callback [timestamp: %i, "
-            "req_count: 1, elapsed_secs: 0]",
+            "rate_limit_callback [timestamp: %i, req_count: 1, elapsed_secs: 0]",
             now,
         )
         return
@@ -69,8 +63,7 @@ def rate_limit_callback(
     request_count = callback_context.state["request_count"] + 1
     elapsed_secs = now - callback_context.state["timer_start"]
     logger.debug(
-        "rate_limit_callback [timestamp: %i, request_count: %i,"
-        " elapsed_secs: %i]",
+        "rate_limit_callback [timestamp: %i, request_count: %i, elapsed_secs: %i]",
         now,
         request_count,
         elapsed_secs,
@@ -102,66 +95,58 @@ def lowercase_value(value):
         return value
 
 
-def validate_program_version_id(program_version_id: str, session_state: State) -> Tuple[bool, str]:
-    """
-        Validates the program version ID against the program profile in the session state.
-        
-        Args:
-            program_version_id (str): The ID of the program version to validate.
-            session_state (State): The session state containing the program profile.
-        
-        Returns:
-            A tuple containing an bool (True/False) and a String. 
-            When False, a string with the error message to pass to the model for deciding
-            what actions to take to remediate.
-    """
+def validate_program_version_id(program_version_id: str, session_state: State) -> tuple[bool, str]:
+    """Validates the program version ID against the program profile in the session state.
 
-    if 'program_profile' not in session_state:
+    Args:
+        program_version_id (str): The ID of the program version to validate.
+        session_state (State): The session state containing the program profile.
+
+    Returns:
+        A tuple containing an bool (True/False) and a String.
+        When False, a string with the error message to pass to the model for deciding
+        what actions to take to remediate.
+
+    """
+    if "program_profile" not in session_state:
         return False, "No program profile selected. Please select a profile."
 
     try:
         # We read the profile from the state, where it is set deterministically
         # at the beginning of the session.
-        p = ProgramVersion.model_validate_json(session_state['program_profile'])
+        p = ProgramVersion.model_validate_json(session_state["program_profile"])
         if program_version_id == p.ver:
             return True, None
         else:
-            return False, "You cannot use the tool with customer_id " + program_version_id + ", only for "+p.ver+"."
-    except ValidationError as e:
+            return False, "You cannot use the tool with customer_id " + program_version_id + ", only for " + p.ver + "."
+    except ValidationError:
         return False, "Program profile couldn't be parsed. Please reload the program version data. "
-    
 
 
 # Callback Methods
-def before_tool(
-    tool: BaseTool, args: Dict[str, Any], tool_context: CallbackContext
-):
-    
+def before_tool(tool: BaseTool, args: dict[str, Any], tool_context: CallbackContext):
     # i make sure all values that the agent is sending to tools are lowercase
     lowercase_value(args)
 
     # Several tools require customer_id as input. We don't want to rely
     # solely on the model picking the right customer id. We validate it.
     # Alternative: tools can fetch the customer_id from the state directly.
-    if 'customer_id' in args:
-        valid, err = validate_program_version_id(args['program_version_id'], tool_context.state)
+    if "customer_id" in args:
+        valid, err = validate_program_version_id(args["program_version_id"], tool_context.state)
         if not valid:
             return err
-        
 
 
-def after_tool(
-    tool: BaseTool, args: Dict[str, Any], tool_context: ToolContext, tool_response: Dict
-) -> Optional[Dict]:
+def after_tool(tool: BaseTool, args: dict[str, Any], tool_context: ToolContext, tool_response: dict) -> dict | None:
     # After approvals, we perform operations deterministically in the callback
     # to apply the discount in the cart.
     if tool.name == "sync_ask_for_approval":
-        if tool_response['status'] == "approved":
+        if tool_response["status"] == "approved":
             logger.debug("Applying discount to the cart")
             # Actually make changes to the cart
 
     if tool.name == "approve_discount":
-        if tool_response['status'] == "ok":
+        if tool_response["status"] == "ok":
             logger.debug("Applying discount to the cart")
             # Actually make changes to the cart
 
@@ -170,10 +155,8 @@ def after_tool(
 
 def before_agent(callback_context: InvocationContext):
     # In a production agent, this is set as part of the
-    # session creation for the agent. 
+    # session creation for the agent.
     if "program_profile" not in callback_context.state:
-        callback_context.state["customer_profile"] = ProgramVersionRepository.get_program_version(
-            "123","1"
-        ).to_json()
+        callback_context.state["customer_profile"] = ProgramVersionRepository.get_program_version("123", "1").to_json()
 
     # logger.info(callback_context.state["customer_profile"])

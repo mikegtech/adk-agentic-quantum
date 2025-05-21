@@ -12,9 +12,9 @@ We need a capable, instruction-tuned LLM to drive multi-agent tooling experiment
 
 ## Decision
 We will deploy Mistral-7B-Instruct-v0.1 locally in a Docker container using the vLLM OpenAI API server image. We’ll configure vLLM to:
-- Use up to 95 % of GPU memory  
-- Disable chunked prefill  
-- Cap context length to 4 096 tokens  
+- Use up to 95 % of GPU memory
+- Disable chunked prefill
+- Cap context length to 4 096 tokens
 
 This configuration allows the model weights (~13.5 GiB BF16) plus KV-cache (~0.4 GiB) to fit under the 16 GiB hardware limit.
 
@@ -27,14 +27,14 @@ This configuration allows the model weights (~13.5 GiB BF16) plus KV-cache (~0.4
 ## Decision Drivers
 
 ### Positive
-- **On-prem GPU usage**: No cloud reliance; full control of data and latency.  
-- **Open weights**: Mistral-Instruct is publicly available once license accepted.  
-- **Performance**: vLLM’s compiled engine delivers interactive throughput.  
+- **On-prem GPU usage**: No cloud reliance; full control of data and latency.
+- **Open weights**: Mistral-Instruct is publicly available once license accepted.
+- **Performance**: vLLM’s compiled engine delivers interactive throughput.
 - **Compatibility**: Exposes standard `/v1/chat/completions`, `/v1/completions`, `/v1/embeddings`.
 
 ### Negative
-- **Context cap**: Limited to 4 096 tokens, not the full 32 768 the model supports.  
-- **Licensing**: Requires HF license acceptance and token injection.  
+- **Context cap**: Limited to 4 096 tokens, not the full 32 768 the model supports.
+- **Licensing**: Requires HF license acceptance and token injection.
 - **Complexity**: Must tune vLLM flags to fit VRAM, adding operational steps.
 
 ## Implementation Notes

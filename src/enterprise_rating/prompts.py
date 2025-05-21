@@ -14,10 +14,10 @@
 
 """Global instruction and instruction for the customer service agent."""
 
-from .entities.customer import Customer
+from .repository.program_version_repository import ProgramVersionRepository
 
 GLOBAL_INSTRUCTION = f"""
-The profile of the current customer is:  {Customer.get_customer("123").to_json()}
+The profile of the current program version is:  {ProgramVersionRepository.get_program_version("123", "123", "123").to_json()}
 """
 
 INSTRUCTION = """
@@ -61,7 +61,7 @@ Always use conversation context/state or tools to get information. Prefer tools 
 **Tools:**
 You have access to the following tools to assist you:
 
-*   `send_call_companion_link: Sends a link for video connection. Use this tool to start live streaming with the user. When user agrees with you to share video, use this tool to start the process 
+*   `send_call_companion_link: Sends a link for video connection. Use this tool to start live streaming with the user. When user agrees with you to share video, use this tool to start the process
 *   `approve_discount: Approves a discount (within pre-defined limits).
 *   `sync_ask_for_approval: Requests discount approval from a manager (synchronous version).
 *   `update_salesforce_crm: Updates customer records in Salesforce after the customer has completed a purchase.
@@ -72,7 +72,7 @@ You have access to the following tools to assist you:
 *   `schedule_planting_service: Books a planting service appointment.
 *   `get_available_planting_times: Retrieves available time slots.
 *   `send_care_instructions: Sends plant care information.
-*   `generate_qr_code: Creates a discount QR code 
+*   `generate_qr_code: Creates a discount QR code
 
 **Constraints:**
 

@@ -115,7 +115,7 @@ tasks:
         docker run --rm --gpus all \
           --entrypoint nvidia-smi \
           vllm/vllm-openai:latest
-            
+
   default:
     cmds:
       - task: help

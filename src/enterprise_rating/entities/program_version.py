@@ -1,21 +1,19 @@
-from typing import List, Dict, Optional
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, ConfigDict
+
 from enterprise_rating.entities.category import Category
 from enterprise_rating.entities.input_variable import Input
 
 
 class IbSchema(BaseModel):
-    """
-    Represents a insbridge schema.
-    """
-    categories: List[Category]
-    inputs: List[Input]
+    """Represents a insbridge schema."""
+
+    categories: list[Category]
+    inputs: list[Input]
 
 
 class ProgramVersion(BaseModel):
-    """
-    Represents a program_version.
-    """
+    """Represents a program_version."""
+
     sub: str
     line: int
     ib_schema: IbSchema
@@ -32,4 +30,3 @@ class ProgramVersion(BaseModel):
     decimal_symbol: str
     group_symbol: str
     model_config = ConfigDict(from_attributes=True)
-

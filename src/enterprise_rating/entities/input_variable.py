@@ -1,9 +1,9 @@
 from pydantic import BaseModel
 
+
 class Input(BaseModel):
-    """
-    Represents a input.
-    """
+    """Represents a input."""
+
     l: str
     i: str
     p: str

@@ -23,30 +23,27 @@ results and feed them back to the LLM.
 
 from __future__ import annotations
 
-import logging
 import difflib
 import json
+import logging
 from pathlib import Path
 from typing import Any
-
-from google.adk.tools import ToolContext
 
 logger = logging.getLogger(__name__)
 
 # ────────────────────────────────────────────────────────────────────────────────
 # Helper stubs (replace with real adapters to Milvus, S3, etc.)
 # ────────────────────────────────────────────────────────────────────────────────
-_VECTOR_INDEX = {}                       # e.g., Milvus / pgvector client
-_XML_CACHE: dict[str, str] = {}          # path → xml-string
-_PROGRAM_META = Path("/data/programs")   # root folder with decoded JSON
+_VECTOR_INDEX = {}  # e.g., Milvus / pgvector client
+_XML_CACHE: dict[str, str] = {}  # path → xml-string
+_PROGRAM_META = Path("/data/programs")  # root folder with decoded JSON
 
 
 # ────────────────────────────────────────────────────────────────────────────────
 # Public ADK tools
 # ────────────────────────────────────────────────────────────────────────────────
 def vector_search(query: str, k: int = 5) -> dict[str, Any]:
-    """
-    Semantic search over vector-indexed XML chunks.
+    """Semantic search over vector-indexed XML chunks.
 
     Args:
         query: Free-form natural-language question.
@@ -64,23 +61,15 @@ def vector_search(query: str, k: int = 5) -> dict[str, Any]:
              'preview': '<i n="12" t="86" ...>'}
           ]
         }
+
     """
     logger.info("Vector search query=%s k=%s", query, k)
     # MOCK – replace with real ANN call
-    return {
-        "hits": [
-            {
-                "path": "/mock/path",
-                "score": 0.99,
-                "preview": "<i n='1' .../>"
-            }
-        ]
-    }
+    return {"hits": [{"path": "/mock/path", "score": 0.99, "preview": "<i n='1' .../>"}]}
 
 
 def fetch_xml_fragment(path: str) -> dict[str, str]:
-    """
-    Retrieves the original XML fragment for a given canonical path.
+    """Retrieves the original XML fragment for a given canonical path.
 
     Args:
         path: Canonical XPath-style string emitted by `vector_search`.
@@ -89,8 +78,9 @@ def fetch_xml_fragment(path: str) -> dict[str, str]:
         dict with `xml` payload.
 
     Example:
-        >>> fetch_xml_fragment('/Auto_TX/Algorithms/PremiumCalc/Step[12]')
+        >>> fetch_xml_fragment("/Auto_TX/Algorithms/PremiumCalc/Step[12]")
         {'xml': '<i n="12" t="86" ... />'}
+
     """
     logger.info("Fetching XML for %s", path)
     xml = _XML_CACHE.get(path, "<xml>NOT_FOUND</xml>")
@@ -98,8 +88,7 @@ def fetch_xml_fragment(path: str) -> dict[str, str]:
 
 
 def diff_versions(program_id: str, version_a: str, version_b: str) -> dict[str, str]:
-    """
-    Generates a unified diff between two decoded JSON versions of a program.
+    """Generates a unified diff between two decoded JSON versions of a program.
 
     Args:
         program_id: e.g., 'Auto_TX'.
@@ -110,31 +99,25 @@ def diff_versions(program_id: str, version_a: str, version_b: str) -> dict[str, 
         dict with `diff` (unified diff text).
 
     Example:
-        >>> diff_versions('Auto_TX', '1.2', '1.3')
+        >>> diff_versions("Auto_TX", "1.2", "1.3")
         {'diff': '--- 1.2\\n+++ 1.3\\n@@ ...'}
+
     """
     logger.info("Diffing program=%s %s → %s", program_id, version_a, version_b)
     try:
-        a_txt = ( _PROGRAM_META / program_id / f"{version_a}.json" ).read_text()
-        b_txt = ( _PROGRAM_META / program_id / f"{version_b}.json" ).read_text()
+        a_txt = (_PROGRAM_META / program_id / f"{version_a}.json").read_text()
+        b_txt = (_PROGRAM_META / program_id / f"{version_b}.json").read_text()
     except FileNotFoundError:
         return {"diff": "ERROR: one or both versions not found."}
 
     diff_text = "\n".join(
-        difflib.unified_diff(
-            a_txt.splitlines(),
-            b_txt.splitlines(),
-            fromfile=version_a,
-            tofile=version_b,
-            lineterm=""
-        )
+        difflib.unified_diff(a_txt.splitlines(), b_txt.splitlines(), fromfile=version_a, tofile=version_b, lineterm="")
     )
     return {"diff": diff_text or "No differences."}
 
 
 def list_rate_tables(program_id: str, version: str) -> dict[str, Any]:
-    """
-    Lists all rate-tables available in a specific program version.
+    """Lists all rate-tables available in a specific program version.
 
     Args:
         program_id: Program identifier.
@@ -144,8 +127,9 @@ def list_rate_tables(program_id: str, version: str) -> dict[str, Any]:
         dict with `tables` → list[str].
 
     Example:
-        >>> list_rate_tables('Auto_TX', '1.3')
+        >>> list_rate_tables("Auto_TX", "1.3")
         {'tables': ['CollisionTable', 'TerritoryTable', ...]}
+
     """
     logger.info("Listing rate tables for %s v%s", program_id, version)
     meta_file = _PROGRAM_META / program_id / f"{version}.json"
@@ -157,8 +141,7 @@ def list_rate_tables(program_id: str, version: str) -> dict[str, Any]:
 
 
 def run_sample_premium(program_id: str, version: str, inputs: dict[str, Any]) -> dict[str, Any]:
-    """
-    Executes a simplified premium calculation against decoded rules.
+    """Executes a simplified premium calculation against decoded rules.
 
     Args:
         program_id: Program identifier.
@@ -169,8 +152,9 @@ def run_sample_premium(program_id: str, version: str, inputs: dict[str, Any]) ->
         dict with `premium_breakdown` and `total_premium`.
 
     Example:
-        >>> run_sample_premium('Auto_TX', '1.3', {'driverAge': 30, 'territory': 'TX1'})
+        >>> run_sample_premium("Auto_TX", "1.3", {"driverAge": 30, "territory": "TX1"})
         {'premium_breakdown': {'base': 400, 'fees': 25}, 'total_premium': 425}
+
     """
     logger.info("Running sample premium for %s v%s with %s", program_id, version, inputs)
     # MOCK calculation – stub until runtime engine is wired
@@ -180,8 +164,7 @@ def run_sample_premium(program_id: str, version: str, inputs: dict[str, Any]) ->
 
 
 def validate_instruction(instr_code: str) -> dict[str, str]:
-    """
-    Checks whether an instruction code (t= value) is recognised in the lookup table.
+    """Checks whether an instruction code (t= value) is recognised in the lookup table.
 
     Args:
         instr_code: e.g., '86'.
@@ -190,8 +173,9 @@ def validate_instruction(instr_code: str) -> dict[str, str]:
         dict with `status` and `meaning` or error.
 
     Example:
-        >>> validate_instruction('86')
+        >>> validate_instruction("86")
         {'status': 'ok', 'meaning': 'Evaluate RuleSet'}
+
     """
     logger.info("Validating instruction code %s", instr_code)
     lookup = {"86": "Evaluate RuleSet", "90": "Lookup Rate Table"}
@@ -201,8 +185,7 @@ def validate_instruction(instr_code: str) -> dict[str, str]:
 
 
 def export_change_report(program_id: str, version: str, fmt: str = "markdown") -> dict[str, str]:
-    """
-    Exports a human-readable change log for a program version in Markdown or HTML.
+    """Exports a human-readable change log for a program version in Markdown or HTML.
 
     Args:
         program_id: Program identifier.
@@ -213,8 +196,9 @@ def export_change_report(program_id: str, version: str, fmt: str = "markdown") -
         dict with `content` (string).
 
     Example:
-        >>> export_change_report('Auto_TX', '1.3', fmt='markdown')
+        >>> export_change_report("Auto_TX", "1.3", fmt="markdown")
         {'content': '# Auto_TX v1.3\\n* Added ...'}
+
     """
     logger.info("Exporting change report for %s v%s as %s", program_id, version, fmt)
     # MOCK report — replace with real diff summariser
