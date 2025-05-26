@@ -15,7 +15,9 @@
 """Callback functions for FOMC Research Agent."""
 
 import logging
+import os
 import time
+from pathlib import Path
 from typing import Any
 
 from google.adk.agents.callback_context import CallbackContext
@@ -34,6 +36,8 @@ logger.setLevel(logging.DEBUG)
 
 RATE_LIMIT_SECS = 60
 RPM_QUOTA = 10
+# Get the root directory (assuming your script is somewhere under src/)
+ROOT = Path(__file__).resolve().parent.parent.parent  # Adjust .parent as needed!
 
 
 def rate_limit_callback(callback_context: CallbackContext, llm_request: LlmRequest) -> None:
@@ -157,6 +161,16 @@ def before_agent(callback_context: InvocationContext):
     # In a production agent, this is set as part of the
     # session creation for the agent.
     if "program_profile" not in callback_context.state:
-        callback_context.state["customer_profile"] = ProgramVersionRepository.get_program_version("123", "1").to_json()
+        callback_context.state["customer_profile"] = ProgramVersionRepository.get_program_version(
+            "123", "123", "1"
+        ).model_dump_json()
 
-    # logger.info(callback_context.state["customer_profile"])
+    # Define the path
+    folder_path = ROOT / "data" / "C504714691"
+    file_path = os.path.join(folder_path, "model.json")
+
+    # Create the folder if it does not exist
+    os.makedirs(folder_path, exist_ok=True)
+
+    with open(file_path, "w", encoding="utf-8") as f:
+        f.write(callback_context.state["customer_profile"])

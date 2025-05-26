@@ -27,40 +27,21 @@ from google.adk import Agent
 
 from .config import Config
 from .prompts import GLOBAL_INSTRUCTION, INSTRUCTION
-from .shared_libraries.callbacks import (
-    after_tool,
-    before_agent,
-    before_tool,
-    rate_limit_callback,
-)
-from .tools.tools import (  # ← file created in previous step
-    diff_versions,
-    export_change_report,
-    fetch_xml_fragment,
-    list_rate_tables,
-    run_sample_premium,
-    validate_instruction,
-    vector_search,
-)
+from .shared_libraries.callbacks import after_tool, before_agent, before_tool, rate_limit_callback
+from .tools.tools import validate_instruction
 
 warnings.filterwarnings("ignore", category=UserWarning, module=".*pydantic.*")
 
 cfg = Config()
 logger = logging.getLogger(__name__)
 
-rating_agent = Agent(
+root_agent = Agent(
     model=cfg.agent_settings.model,  # e.g. "nv-llama3-8b-instruct"
     name=cfg.agent_settings.name,  # e.g. "QuantumRate-Agent"
     global_instruction=GLOBAL_INSTRUCTION,  # system-level guardrails
     instruction=INSTRUCTION,  # conversation-level prompt
     tools=[
-        vector_search,
-        fetch_xml_fragment,
-        diff_versions,
-        list_rate_tables,
-        run_sample_premium,
         validate_instruction,
-        export_change_report,
     ],
     # optional callbacks for tracing / metrics / rate limiting
     before_tool_callback=before_tool,

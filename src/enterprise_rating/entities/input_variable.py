@@ -1,12 +1,14 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 
 class Input(BaseModel):
     """Represents a input."""
 
-    l: str
-    i: str
-    p: str
-    d: str
-    c: str
-    sys: str
+    line: str
+    index: str
+    data_type: str
+    description: str
+    category_id: str
+    system_var: str
+    qual_type: str
+    model_config = ConfigDict(from_attributes=True)

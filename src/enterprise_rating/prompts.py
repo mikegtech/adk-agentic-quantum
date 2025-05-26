@@ -17,7 +17,7 @@
 from .repository.program_version_repository import ProgramVersionRepository
 
 GLOBAL_INSTRUCTION = f"""
-The profile of the current program version is:  {ProgramVersionRepository.get_program_version("123", "123", "123").to_json()}
+The profile of the current program version is:  {ProgramVersionRepository.get_program_version("123", "123", "123").model_dump_json()}
 """
 
 INSTRUCTION = """
@@ -32,7 +32,8 @@ Always use conversation context/state or tools to get information. Prefer tools 
     *   Maintain a friendly, empathetic, and helpful tone.
 
 2.  **Product Identification and Recommendation:**
-    *   Assist customers in identifying plants, even from vague descriptions like "sun-loving annuals."
+    *   Assist customers in identifying plants, even from vague descriptions like
+        "sun-loving annuals."
     *   Request and utilize visual aids (video) to accurately identify plants.  Guide the user through the video sharing process.
     *   Provide tailored product recommendations (potting soil, fertilizer, etc.) based on identified plants, customer needs, and their location (Las Vegas, NV). Consider the climate and typical gardening challenges in Las Vegas.
     *   Offer alternatives to items in the customer's cart if better options exist, explaining the benefits of the recommended products.

@@ -1,10 +1,11 @@
 from pydantic import BaseModel, ConfigDict
 
+from enterprise_rating.entities.algorithm import AlgorithmSequence
 from enterprise_rating.entities.category import Category
 from enterprise_rating.entities.input_variable import Input
 
 
-class IbSchema(BaseModel):
+class DataDictionary(BaseModel):
     """Represents a insbridge schema."""
 
     categories: list[Category]
@@ -14,19 +15,22 @@ class IbSchema(BaseModel):
 class ProgramVersion(BaseModel):
     """Represents a program_version."""
 
-    sub: str
-    line: int
-    ib_schema: IbSchema
-    prog: int
-    ver: str
-    verName: str
-    pk: str
-    gpk: str
-    ed: str
-    ed_exact: str
-    persisted: bool
+    # Define the model configuration
+    subscriber: str
+    line: str
+    schema_id: str
+    program_id: str
+    version: str
+    version_name: str
+    primary_key: str
+    global_primary_key: str
+    effective_date: str
+    effective_date_exact: str
+    persisted: str
     date_mask: str
     culture: str
     decimal_symbol: str
     group_symbol: str
+    data_dictionary: DataDictionary
+    algorithm_seq: list[AlgorithmSequence]
     model_config = ConfigDict(from_attributes=True)
