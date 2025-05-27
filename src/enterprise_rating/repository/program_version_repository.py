@@ -4,7 +4,8 @@ from pathlib import Path
 
 import xmltodict
 
-from enterprise_rating.entities.program_version import ProgramVersion  # wherever you defined your Pydantic models
+from enterprise_rating.entities.program_version import \
+    ProgramVersion  # wherever you defined your Pydantic models
 
 logger = logging.getLogger(__name__)
 
@@ -75,11 +76,24 @@ class ProgramVersionRepository:  # noqa: D101
             "@p": "program_id",
             "@assign_fltr": "assign_filter",
             "@adv_type": "advanced_type",
-            "d": "dependencies",
+            "d": "dependency_vars",
         },
         "DependencyBase": {
             "@pk": "prog_key",
-            "d": "dependencies",
+            "@rk": "revision_key",
+            "@i": "index",
+            "@v": "version",
+            "@cid": "custom_id",
+            "@d": "description",
+            "@alg": "alg_type",
+            "@cat": "category_id",
+            "@p": "program_id",
+            "@dt": "data_type",
+            "@t": "type",
+            "@dlm": "date_last_modified",
+            "@u": "universal",
+            "@level": "level_id",
+            "d": "dependency_vars",
             # Add more attribute mappings specific to DependencyBase if needed
         },
         # Add more entities and their attribute maps as needed
@@ -147,8 +161,8 @@ class ProgramVersionRepository:  # noqa: D101
             elif isinstance(value, dict):
                 value = [{ProgramVersionRepository.ATTRIBUTE_MAPS["Algorithm"].get(k, k): v for k, v in value.items()}]
 
-        # Recursively map dependencies for nested <d> elements
-        if mapped_key == "dependencies" and value:
+        # Recursively map dependency_vars for nested <d> elements
+        if mapped_key == "dependency_vars" and value:
             dep_map = ProgramVersionRepository.ATTRIBUTE_MAPS["DependencyBase"]
 
             def map_dependency(item):
@@ -157,10 +171,8 @@ class ProgramVersionRepository:  # noqa: D101
                     return [map_dependency(subitem) for subitem in item]
                 elif isinstance(item, dict):
                     mapped = {dep_map.get(k, k): v for k, v in item.items()}
-                    # Recursively process child dependencies if present
-                    if "dependencies" in mapped and mapped["dependencies"]:
-                        mapped["dependencies"] = map_dependency(mapped["dependencies"])
-                    # --- Add custom logic here for table/calculated variable children ---
+                    if "dependency_vars" in mapped and mapped["dependency_vars"]:
+                        mapped["dependency_vars"] = map_dependency(mapped["dependency_vars"])
                     return mapped
                 else:
                     return item  # fallback for unexpected types
@@ -169,6 +181,7 @@ class ProgramVersionRepository:  # noqa: D101
                 value = [map_dependency(value)]
             elif isinstance(value, list):
                 value = [map_dependency(dep) for dep in value]
+        return mapped_key, value
         return mapped_key, value
 
     @staticmethod

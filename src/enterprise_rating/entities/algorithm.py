@@ -19,7 +19,7 @@ class Algorithm(BaseModel):
     program_id: str  # Program ID associated with the algorithm
     assign_filter: str  # Filter for assignment
     advanced_type: str  # Advanced type of the algorithm
-    dependencies: list[DependencyBase] | None = None  # List of dependencies for the algorithm
+    dependency_vars: list[DependencyBase] | None = None  # List of dependency_vars for the algorithm
     model_config = ConfigDict(from_attributes=True)
 
 

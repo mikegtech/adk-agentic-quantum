@@ -13,12 +13,15 @@ class DependencyBase(BaseModel):
     description: str  # Description of the algorithm
     date_last_modified: str  # Date when the algorithm was last modified
     index: int  # Index of the algorithm in the sequence
-    c_index: int | None = None  # Optional index for the algorithm
+    custom_id: int | None = None  # Optional index for the algorithm
     version: str  # Version of the algorithm
     program_id: str  # Program ID associated with the algorithm
-    assign_filter: str  # Filter for assignment
-    advanced_type: str  # Advanced type of the algorithm
-    dependencies: list[Dependency] = Field(default_factory=list, alias="d")
+    universal: str = "0"  # Universal flag for the algorithm
+    data_type: str | None = None  # Data type of the algorithm
+    ib_type: str | None = None  # IB type of the algorithm
+    level_id: str | None = None  # Level ID for the algorithm
+    processed: str | None = None  # Processed flag for the algorithm
+    dependency_vars: list[Dependency] = Field(default_factory=list, alias="d")
 
     class Config:
         extra = "allow"
