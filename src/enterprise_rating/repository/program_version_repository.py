@@ -58,15 +58,14 @@ class ProgramVersionRepository:  # noqa: D101
             "seq": "algorithm_seq",
             "@n": "sequence_number",
             "@u": "universal",
-            "item": "algorithm",
             # Example: "@id": "schema_id",
             # Add attribute mappings specific to DataDictionary if needed
         },
         "Algorithm": {
+            "item": "algorithm",
             "@pk": "prog_key",
             "@rk": "revision_key",
             "@alg": "alg_type",
-            "@c": "category_id",
             "@qt": "qual_type",
             "@cat": "category_id",
             "@d": "description",
@@ -76,12 +75,22 @@ class ProgramVersionRepository:  # noqa: D101
             "@p": "program_id",
             "@assign_fltr": "assign_filter",
             "@adv_type": "advanced_type",
+            "d": "dependencies",
+        },
+        "DependencyBase": {
+            "@pk": "prog_key",
+            "d": "dependencies",
+            # Add more attribute mappings specific to DependencyBase if needed
         },
         # Add more entities and their attribute maps as needed
     }
 
     @staticmethod
     def _entity_aware_postprocessor(path, key, value):
+        # Unwrap {"item": {...}} at any level
+        if isinstance(value, dict) and set(value.keys()) == {"item"}:
+            value = value["item"]
+
         attr_map = {}
         # Determine the entity type based on the path
         if path and isinstance(path[-1], tuple):
@@ -98,6 +107,8 @@ class ProgramVersionRepository:  # noqa: D101
                 attr_map = ProgramVersionRepository.ATTRIBUTE_MAPS.get("AlgorithmSequence", {})
             elif parent == "item":
                 attr_map = ProgramVersionRepository.ATTRIBUTE_MAPS.get("Algorithm", {})
+            elif parent == "d":
+                attr_map = ProgramVersionRepository.ATTRIBUTE_MAPS.get("DependencyBase", {})
 
         mapped_key = attr_map.get(key, key)
 
@@ -125,25 +136,39 @@ class ProgramVersionRepository:  # noqa: D101
                 value = [{ProgramVersionRepository.ATTRIBUTE_MAPS["Input"].get(k, k): v for k, v in value.items()}]
 
         # Flatten algorithm_seq and map their children
-        if mapped_key == "algorithm_seq":
-            # If value is a dict with a single "algorithm" key, extract the list
-            if isinstance(value, dict) and "algorithm" in value:
-                value = value["algorithm"]
-            # Now value should be a list or dict of items
-            def split_algorithm_fields(item):
-                seq_fields = {}
-                alg_fields = {}
-                for k, v in item.items():
-                    if k in ("sequence_number", "universal"):
-                        seq_fields[k] = v
-                    else:
-                        alg_fields[ProgramVersionRepository.ATTRIBUTE_MAPS["Algorithm"].get(k, k)] = v
-                return {**seq_fields, "algorithm": alg_fields}
+        if mapped_key == "algorithm" and isinstance(value, dict) and "item" in value:
+            value = value["item"]
+            # Map each category dict's keys
             if isinstance(value, list):
-                value = [split_algorithm_fields(item) for item in value]
+                value = [
+                    {ProgramVersionRepository.ATTRIBUTE_MAPS["Algorithm"].get(k, k): v for k, v in item.items()}
+                    for item in value
+                ]
             elif isinstance(value, dict):
-                value = [split_algorithm_fields(value)]
+                value = [{ProgramVersionRepository.ATTRIBUTE_MAPS["Algorithm"].get(k, k): v for k, v in value.items()}]
 
+        # Recursively map dependencies for nested <d> elements
+        if mapped_key == "dependencies" and value:
+            dep_map = ProgramVersionRepository.ATTRIBUTE_MAPS["DependencyBase"]
+
+            def map_dependency(item):
+                if isinstance(item, list):
+                    # Recursively map each item in the list
+                    return [map_dependency(subitem) for subitem in item]
+                elif isinstance(item, dict):
+                    mapped = {dep_map.get(k, k): v for k, v in item.items()}
+                    # Recursively process child dependencies if present
+                    if "dependencies" in mapped and mapped["dependencies"]:
+                        mapped["dependencies"] = map_dependency(mapped["dependencies"])
+                    # --- Add custom logic here for table/calculated variable children ---
+                    return mapped
+                else:
+                    return item  # fallback for unexpected types
+
+            if isinstance(value, dict):
+                value = [map_dependency(value)]
+            elif isinstance(value, list):
+                value = [map_dependency(dep) for dep in value]
         return mapped_key, value
 
     @staticmethod

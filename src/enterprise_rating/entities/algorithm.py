@@ -1,4 +1,8 @@
+
+
 from pydantic import BaseModel, ConfigDict
+
+from enterprise_rating.entities.dependency import DependencyBase
 
 
 class Algorithm(BaseModel):
@@ -8,7 +12,6 @@ class Algorithm(BaseModel):
     revision_key: str  # Revision key for the algorithm
     alg_type: str  # Type of the algorithm
     category_id: str  # Category ID associated with the algorithm
-    qual_type: str  # Qualifier type for the algorithm
     description: str  # Description of the algorithm
     date_last_modified: str  # Date when the algorithm was last modified
     index: int  # Index of the algorithm in the sequence
@@ -16,12 +19,15 @@ class Algorithm(BaseModel):
     program_id: str  # Program ID associated with the algorithm
     assign_filter: str  # Filter for assignment
     advanced_type: str  # Advanced type of the algorithm
+    dependencies: list[DependencyBase] | None = None  # List of dependencies for the algorithm
     model_config = ConfigDict(from_attributes=True)
 
 
 class AlgorithmSequence(BaseModel):
     """Represents a sequence of algorithms in the program version."""
 
-    algorithm: Algorithm
+    # algorithm: Algorithm
     sequence_number: int  # The order of the algorithm in the sequence
     universal: str  # Universal identifier for the algorithm sequence
+    algorithm: Algorithm  # The algorithm associated with this sequence
+    model_config = ConfigDict(from_attributes=True)
