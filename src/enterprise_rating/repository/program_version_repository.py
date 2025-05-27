@@ -4,8 +4,7 @@ from pathlib import Path
 
 import xmltodict
 
-from enterprise_rating.entities.program_version import \
-    ProgramVersion  # wherever you defined your Pydantic models
+from enterprise_rating.entities.program_version import ProgramVersion  # wherever you defined your Pydantic models
 
 logger = logging.getLogger(__name__)
 
@@ -167,8 +166,15 @@ class ProgramVersionRepository:  # noqa: D101
 
             def map_dependency(item):
                 if isinstance(item, list):
-                    # Recursively map each item in the list
-                    return [map_dependency(subitem) for subitem in item]
+                    # Recursively map and flatten
+                    flat = []
+                    for subitem in item:
+                        mapped = map_dependency(subitem)
+                        if isinstance(mapped, list):
+                            flat.extend(mapped)
+                        else:
+                            flat.append(mapped)
+                    return flat
                 elif isinstance(item, dict):
                     mapped = {dep_map.get(k, k): v for k, v in item.items()}
                     if "dependency_vars" in mapped and mapped["dependency_vars"]:
@@ -177,12 +183,40 @@ class ProgramVersionRepository:  # noqa: D101
                 else:
                     return item  # fallback for unexpected types
 
+            # Always convert to a dict[int, dict]
+            def to_dict_by_index(dep_list):
+                result = {}
+                for i, item in enumerate(dep_list):
+                    # If item is a dict with a single key and that value is a dict, unwrap it
+                    if isinstance(item, dict) and len(item) == 1 and isinstance(next(iter(item.values())), dict):
+                        key, value = next(iter(item.items()))
+                        result[str(key)] = value
+                    else:
+                        # Use 'index' if present, else enumerate
+                        if isinstance(item, dict) and "index" in item:
+                            key = str(item["index"])
+                        else:
+                            key = str(i)
+                        result[key] = item
+                return result
+
             if isinstance(value, dict):
-                value = [map_dependency(value)]
+                value = to_dict_by_index([map_dependency(value)])
             elif isinstance(value, list):
-                value = [map_dependency(dep) for dep in value]
+                mapped = map_dependency(value)
+                # flatten if needed
+                if isinstance(mapped, list) and any(isinstance(i, list) for i in mapped):
+                    flat = []
+                    for i in mapped:
+                        if isinstance(i, list):
+                            flat.extend(i)
+                        else:
+                            flat.append(i)
+                    mapped = flat
+                value = to_dict_by_index(mapped)
+
         return mapped_key, value
-        return mapped_key, value
+
 
     @staticmethod
     def get_program_version(lob: str, progId: str, progVer: str) -> ProgramVersion | None:

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Literal, Union
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 
 class DependencyBase(BaseModel):
@@ -21,7 +21,8 @@ class DependencyBase(BaseModel):
     ib_type: str | None = None  # IB type of the algorithm
     level_id: str | None = None  # Level ID for the algorithm
     processed: str | None = None  # Processed flag for the algorithm
-    dependency_vars: list[Dependency] = Field(default_factory=list, alias="d")
+    # dependency_vars: list[Dependency]
+    dependency_vars: dict[str, Dependency] | None = None
 
     class Config:
         extra = "allow"
@@ -33,11 +34,11 @@ class CalculatedVariable(DependencyBase):
 
 
 class TableVariable(DependencyBase):
-    ib_type: Literal["2"]
+    ib_type: Literal["6", "9"]
 
 
 class ResultVariable(DependencyBase):
-    ib_type: Literal["3"]
+    ib_type: Literal["8"]
 
 
 class InputVariable(DependencyBase):

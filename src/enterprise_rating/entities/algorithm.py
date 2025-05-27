@@ -1,5 +1,6 @@
 
 
+
 from pydantic import BaseModel, ConfigDict
 
 from enterprise_rating.entities.dependency import DependencyBase
@@ -19,8 +20,38 @@ class Algorithm(BaseModel):
     program_id: str  # Program ID associated with the algorithm
     assign_filter: str  # Filter for assignment
     advanced_type: str  # Advanced type of the algorithm
-    dependency_vars: list[DependencyBase] | None = None  # List of dependency_vars for the algorithm
+    dependency_vars: dict[str, DependencyBase] | None = None
     model_config = ConfigDict(from_attributes=True)
+
+    # @field_validator('dependency_vars', mode='before')
+    # def list_to_dict(cls, v):
+    #     if v is None:
+    #         return v
+    #     if isinstance(v, dict):
+    #         # Flatten any single-item lists in the dict values
+    #         for k in list(v.keys()):
+    #             if isinstance(v[k], list):
+    #                 if len(v[k]) == 1:
+    #                     v[k] = v[k][0]
+    #                 elif len(v[k]) == 0:
+    #                     v[k] = None
+    #                 else:
+    #                     # If you expect only one dependency per key, just take the first
+    #                     v[k] = v[k][0]
+    #         return v
+    #     if isinstance(v, list):
+    #         result = {}
+    #         for i, item in enumerate(v):
+    #             if isinstance(item, dict) and 'index' in item:
+    #                 try:
+    #                     key = int(item['index'])
+    #                 except Exception:
+    #                     key = i
+    #             else:
+    #                 key = i
+    #             result[key] = item
+    #         return result
+    #     return v
 
 
 class AlgorithmSequence(BaseModel):
