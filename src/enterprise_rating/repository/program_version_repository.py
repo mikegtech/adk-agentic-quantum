@@ -88,7 +88,7 @@ class ProgramVersionRepository:  # noqa: D101
             "@cat": "category_id",
             "@p": "program_id",
             "@dt": "data_type",
-            "@t": "type",
+            "@t": "ib_type",
             "@dlm": "date_last_modified",
             "@u": "universal",
             "@level": "level_id",
@@ -160,60 +160,51 @@ class ProgramVersionRepository:  # noqa: D101
             elif isinstance(value, dict):
                 value = [{ProgramVersionRepository.ATTRIBUTE_MAPS["Algorithm"].get(k, k): v for k, v in value.items()}]
 
-        # Recursively map dependency_vars for nested <d> elements
-        if mapped_key == "dependency_vars" and value:
-            dep_map = ProgramVersionRepository.ATTRIBUTE_MAPS["DependencyBase"]
-
-            def map_dependency(item):
-                if isinstance(item, list):
-                    # Recursively map and flatten
-                    flat = []
-                    for subitem in item:
-                        mapped = map_dependency(subitem)
-                        if isinstance(mapped, list):
-                            flat.extend(mapped)
-                        else:
-                            flat.append(mapped)
-                    return flat
-                elif isinstance(item, dict):
-                    mapped = {dep_map.get(k, k): v for k, v in item.items()}
-                    if "dependency_vars" in mapped and mapped["dependency_vars"]:
-                        mapped["dependency_vars"] = map_dependency(mapped["dependency_vars"])
-                    return mapped
-                else:
-                    return item  # fallback for unexpected types
-
-            # Always convert to a dict[int, dict]
-            def to_dict_by_index(dep_list):
-                result = {}
-                for i, item in enumerate(dep_list):
-                    # If item is a dict with a single key and that value is a dict, unwrap it
-                    if isinstance(item, dict) and len(item) == 1 and isinstance(next(iter(item.values())), dict):
-                        key, value = next(iter(item.items()))
-                        result[str(key)] = value
-                    else:
-                        # Use 'index' if present, else enumerate
-                        if isinstance(item, dict) and "index" in item:
-                            key = str(item["index"])
-                        else:
-                            key = str(i)
-                        result[key] = item
-                return result
-
+        # Flatten algorithm_seq and map their children
+        if mapped_key == "dependency_vars":
             if isinstance(value, dict):
-                value = to_dict_by_index([map_dependency(value)])
+                # Single dependency
+                value = {ProgramVersionRepository.ATTRIBUTE_MAPS["DependencyBase"].get(k, k): v for k, v in value.items()}
             elif isinstance(value, list):
-                mapped = map_dependency(value)
-                # flatten if needed
-                if isinstance(mapped, list) and any(isinstance(i, list) for i in mapped):
-                    flat = []
-                    for i in mapped:
-                        if isinstance(i, list):
-                            flat.extend(i)
-                        else:
-                            flat.append(i)
-                    mapped = flat
-                value = to_dict_by_index(mapped)
+                # If only one, maybe unwrap
+                if len(value) == 1:
+                    value = {ProgramVersionRepository.ATTRIBUTE_MAPS["DependencyBase"].get(k, k): v for k, v in value[0].items()}
+                else:
+                    # If more than one, keep as list
+                    value = [
+                        {ProgramVersionRepository.ATTRIBUTE_MAPS["DependencyBase"].get(k, k): v for k, v in item.items()}
+                        for item in value
+                    ]
+
+        # If the value is a list, map each item in the list
+        # # Recursively map dependency_vars for nested <d> elements
+        # if mapped_key == "dependency_vars" and value:
+        #     dep_map = ProgramVersionRepository.ATTRIBUTE_MAPS["DependencyBase"]
+
+        #     def map_dependency(item):
+        #         if isinstance(item, list):
+        #             # Recursively map and flatten
+        #             flat = []
+        #             for subitem in item:
+        #                 mapped = map_dependency(subitem)
+        #                 if isinstance(mapped, list):
+        #                     flat.extend(mapped)
+        #                 else:
+        #                     flat.append(mapped)
+        #             return flat
+        #         elif isinstance(item, dict):
+        #             mapped = {dep_map.get(k, k): v for k, v in item.items()}
+        #             if "dependency_vars" in mapped and mapped["dependency_vars"]:
+        #                 mapped["dependency_vars"] = map_dependency(mapped["dependency_vars"])
+        #             return mapped
+        #         else:
+        #             return item  # fallback for unexpected types
+
+        #     # Always return a list of dependencies
+        #     if isinstance(value, dict):
+        #         value = [map_dependency(value)]
+        #     elif isinstance(value, list):
+        #         value = map_dependency(value)
 
         return mapped_key, value
 

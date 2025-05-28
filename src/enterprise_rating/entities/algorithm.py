@@ -20,7 +20,7 @@ class Algorithm(BaseModel):
     program_id: str  # Program ID associated with the algorithm
     assign_filter: str  # Filter for assignment
     advanced_type: str  # Advanced type of the algorithm
-    dependency_vars: dict[str, DependencyBase] | None = None
+    dependency_vars: list[DependencyBase] | None = None
     model_config = ConfigDict(from_attributes=True)
 
     # @field_validator('dependency_vars', mode='before')
