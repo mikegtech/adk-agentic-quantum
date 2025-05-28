@@ -16,6 +16,7 @@ class DependencyBase(BaseModel):
     data_type: str | None = None  # Data type of the algorithm
     ib_type: str | None = None  # IB type of the algorithm
     level_id: str | None = None  # Level ID for the algorithm
+    system_var: str | None = None  # System variable flag
     processed: str | None = None  # Processed flag for the algorithm
     dependency_vars: list[Dependency] | None = None
     # dependency_vars: dict[str, Dependency] | None = None

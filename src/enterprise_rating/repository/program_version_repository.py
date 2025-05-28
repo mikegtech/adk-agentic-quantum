@@ -10,6 +10,7 @@ logger = logging.getLogger(__name__)
 
 
 class ProgramVersionRepository:  # noqa: D101
+    _NO_ARG = object()
     env_xml = os.environ.get("PROGRAM_VERSION_XML")
     if env_xml is None:
         raise RuntimeError(
@@ -91,6 +92,8 @@ class ProgramVersionRepository:  # noqa: D101
             "@t": "ib_type",
             "@dlm": "date_last_modified",
             "@u": "universal",
+            "@sys": "system_var",
+            "@processed": "processed",
             "@level": "level_id",
             "d": "dependency_vars",
             # Add more attribute mappings specific to DependencyBase if needed
@@ -99,7 +102,9 @@ class ProgramVersionRepository:  # noqa: D101
     }
 
     @staticmethod
-    def _entity_aware_postprocessor(path, key, value):
+    def _entity_aware_postprocessor(path, key, value=_NO_ARG):
+        # only process if there's something to process
+
         # Unwrap {"item": {...}} at any level
         if isinstance(value, dict) and set(value.keys()) == {"item"}:
             value = value["item"]
@@ -161,7 +166,7 @@ class ProgramVersionRepository:  # noqa: D101
                 value = [{ProgramVersionRepository.ATTRIBUTE_MAPS["Algorithm"].get(k, k): v for k, v in value.items()}]
 
         # Flatten algorithm_seq and map their children
-        if mapped_key == "dependency_vars":
+        if mapped_key == "dependency_vars" and value is not ProgramVersionRepository._NO_ARG:
             if isinstance(value, dict):
                 # Single dependency
                 value = {ProgramVersionRepository.ATTRIBUTE_MAPS["DependencyBase"].get(k, k): v for k, v in value.items()}
@@ -213,7 +218,7 @@ class ProgramVersionRepository:  # noqa: D101
     def get_program_version(lob: str, progId: str, progVer: str) -> ProgramVersion | None:
         with open(ProgramVersionRepository.XML_FILE, encoding="utf-8") as f:
             doc = xmltodict.parse(
-                f.read(), postprocessor=ProgramVersionRepository._entity_aware_postprocessor, force_list=("seq",)
+                f.read(), postprocessor=ProgramVersionRepository._entity_aware_postprocessor, force_list=("seq", "dependency_vars")
             )
 
         progver_data = doc.get("export", {})
