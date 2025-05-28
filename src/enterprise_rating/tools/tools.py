@@ -29,6 +29,8 @@ import logging
 from pathlib import Path
 from typing import Any
 
+from google.adk.tools import ToolContext
+
 logger = logging.getLogger(__name__)
 
 # ────────────────────────────────────────────────────────────────────────────────
@@ -163,7 +165,7 @@ def run_sample_premium(program_id: str, version: str, inputs: dict[str, Any]) ->
     return {"premium_breakdown": {"base": base, "fees": fees}, "total_premium": base + fees}
 
 
-def validate_instruction(instr_code: str) -> dict[str, str]:
+def validate_instruction(tool_context: ToolContext):
     """Checks whether an instruction code (t= value) is recognised in the lookup table.
 
     Args:
@@ -177,11 +179,12 @@ def validate_instruction(instr_code: str) -> dict[str, str]:
         {'status': 'ok', 'meaning': 'Evaluate RuleSet'}
 
     """
-    logger.info("Validating instruction code %s", instr_code)
-    lookup = {"86": "Evaluate RuleSet", "90": "Lookup Rate Table"}
-    if instr_code not in lookup:
-        return {"status": "unknown", "message": "code not recognised"}
-    return {"status": "ok", "meaning": lookup[instr_code]}
+    logger.info("Validating instruction code %s", tool_context)
+    # lookup = {"86": "Evaluate RuleSet", "90": "Lookup Rate Table"}
+    # if tool_context not in lookup:
+    #    return {"status": "unknown", "message": "code not recognised"}
+    # return {"status": "ok", "meaning": lookup[tool_context]}
+    return tool_context
 
 
 def export_change_report(program_id: str, version: str, fmt: str = "markdown") -> dict[str, str]:

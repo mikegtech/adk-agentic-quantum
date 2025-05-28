@@ -17,7 +17,7 @@
 from .repository.program_version_repository import ProgramVersionRepository
 
 GLOBAL_INSTRUCTION = f"""
-The profile of the current program version is:  {ProgramVersionRepository.get_program_version("123", "123", "123").model_dump_json()}
+The profile of the current program version is:  {ProgramVersionRepository.get_program_version("123", "123", "123").program_id}
 """
 
 INSTRUCTION = """

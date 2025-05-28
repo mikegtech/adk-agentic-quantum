@@ -32,12 +32,12 @@ from .tools.tools import validate_instruction
 
 warnings.filterwarnings("ignore", category=UserWarning, module=".*pydantic.*")
 
-cfg = Config()
+configs = Config()
 logger = logging.getLogger(__name__)
 
 root_agent = Agent(
-    model=cfg.agent_settings.model,  # e.g. "nv-llama3-8b-instruct"
-    name=cfg.agent_settings.name,  # e.g. "QuantumRate-Agent"
+    model=configs.agent_settings.model,  # e.g. "nv-llama3-8b-instruct"
+    name=configs.agent_settings.name,  # e.g. "QuantumRate-Agent"
     global_instruction=GLOBAL_INSTRUCTION,  # system-level guardrails
     instruction=INSTRUCTION,  # conversation-level prompt
     tools=[
