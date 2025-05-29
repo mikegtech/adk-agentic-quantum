@@ -1,0 +1,1 @@
+![alt text](/docs/img/risk_control/risk_management_techniques.png)
