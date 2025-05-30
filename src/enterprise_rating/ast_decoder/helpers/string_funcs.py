@@ -1,4 +1,10 @@
-def replace_builder(template: str, **kwargs) -> str:
-    """Stub for ReplaceBuilder: substitutes placeholders in template.
+def replace_builder(builder, segment: str) -> None:
+    """Append a segment string to the builder (list or StringIO-like).
     """
-    return template.format(**kwargs)
+    try:
+        if hasattr(builder, 'append'):
+            builder.append(segment)
+        elif hasattr(builder, 'write'):
+            builder.write(segment)
+    except Exception:
+        pass

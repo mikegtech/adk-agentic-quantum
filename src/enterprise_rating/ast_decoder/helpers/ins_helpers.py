@@ -33,7 +33,27 @@ def get_operator_english(oper: str) -> str:
 def get_round_english(round_spec: str) -> str:
     """Stub for GetRoundEnglish: describes rounding spec in English.
     """
-    # TODO: handle 'RP', 'RM', 'RN', 'NR', 'RS' prefixes
+    if not round_spec:
+        return ''
+    # Round up (RP)
+    if round_spec.startswith("RP"):
+        places = round_spec[2:] if len(round_spec) >= 3 else "0"
+        return f"Round Up {places} place(s)"
+    # Truncate (RM)
+    if round_spec.startswith("RM"):
+        places = round_spec[2:] if len(round_spec) >= 3 else "0"
+        return f"Truncate {places} place(s)"
+    # No Round (RN)
+    if round_spec.startswith("RN"):
+        return "No Round"
+    # Skip NR and RS prefixes
+    if round_spec.startswith("NR") or round_spec.startswith("RS"):
+        return round_spec
+    # Default rounding
+    # e.g. "R2" -> Round to 2 place(s)
+    if round_spec.startswith("R"):
+        places = round_spec[1:] if len(round_spec) == 2 else round_spec[1:]
+        return f"Round to {places} place(s)"
     return round_spec
 
 
