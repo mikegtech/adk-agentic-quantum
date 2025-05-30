@@ -18,6 +18,7 @@ class Algorithm(BaseModel):
     assign_filter: str | None = None  # Filter for assignment
     advanced_type: str  # Advanced type of the algorithm
     dependency_vars: list[DependencyBase] | None = None
+    ast: list[Instructions]
     model_config = ConfigDict(from_attributes=True)
 
 class AlgorithmSequence(BaseModel):

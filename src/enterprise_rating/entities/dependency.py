@@ -33,6 +33,7 @@ class CalculatedVariable(DependencyBase):
     program_id: str  # Program ID associated with the algorithm
     version: str  # Version of the algorithm
     date_last_modified: str  # Date when the algorithm was last modified
+    ast: list[Instructions]
 
 
 class TableVariable(DependencyBase):
