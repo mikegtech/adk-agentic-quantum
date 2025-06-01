@@ -79,7 +79,11 @@ lint.select = [
 ]
 lint.ignore = [
     "D107",   # Missing docstring in `__init__`
+    "D404",   # First line should end with a period
+    "D401",   # First line should be in imperative mood
     "D203",   # incorrect-blank-line-before-class
+    "D205",   # blank-line-after-function
+    "D200",   # no docstring in public module
     "D213",   # multi-line-summary-second-line
     "E501",   # line-too-long
     "C901",   # too complex

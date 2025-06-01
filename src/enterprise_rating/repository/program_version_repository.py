@@ -4,7 +4,9 @@ from pathlib import Path
 
 import xmltodict
 
-from enterprise_rating.entities.program_version import ProgramVersion  # wherever you defined your Pydantic models
+from enterprise_rating.ast_decoder.decoder import decode_ins
+from enterprise_rating.entities.program_version import \
+    ProgramVersion  # wherever you defined your Pydantic models
 
 logger = logging.getLogger(__name__)
 
@@ -77,6 +79,7 @@ class ProgramVersionRepository:  # noqa: D101
             "@assign_fltr": "assign_filter",
             "@adv_type": "advanced_type",
             "d": "dependency_vars",
+            "i": "steps",
         },
         "DependencyBase": {
             "@pk": "prog_key",
@@ -96,8 +99,19 @@ class ProgramVersionRepository:  # noqa: D101
             "@processed": "processed",
             "@level": "level_id",
             "d": "dependency_vars",
+            "i": "steps",
             # Add more attribute mappings specific to DependencyBase if needed
         },
+        "Instruction": {
+            "i": "steps",
+            "@n": "n",  # step number
+            "@t": "t",  # instruction type code
+            "@ins": "ins",  # raw instruction string
+            "@ins_tar": "ins_tar",  # instruction target (optional)
+            "@seq_t": "seq_t",  # index of next-if-true (optional)
+            "@seq_f": "seq_f",  # index of next-if-false (optional)
+            "ast": "ast",  # AST translation of the instruction
+        }
         # Add more entities and their attribute maps as needed
     }
 
@@ -127,6 +141,8 @@ class ProgramVersionRepository:  # noqa: D101
                 attr_map = ProgramVersionRepository.ATTRIBUTE_MAPS.get("Algorithm", {})
             elif parent == "d":
                 attr_map = ProgramVersionRepository.ATTRIBUTE_MAPS.get("DependencyBase", {})
+            elif parent == "i":
+                attr_map = ProgramVersionRepository.ATTRIBUTE_MAPS.get("Instruction", {})
 
         mapped_key = attr_map.get(key, key)
 
@@ -181,44 +197,30 @@ class ProgramVersionRepository:  # noqa: D101
                         for item in value
                     ]
 
-        # If the value is a list, map each item in the list
-        # # Recursively map dependency_vars for nested <d> elements
-        # if mapped_key == "dependency_vars" and value:
-        #     dep_map = ProgramVersionRepository.ATTRIBUTE_MAPS["DependencyBase"]
+        # Flatten algorithm_seq and map their children
+        if (parent == "steps" or key == "i") and isinstance(value, dict) and "i" in value:
+            value = value["i"]
+            # Map each category dict's keys
+            if isinstance(value, list):
+                value = [
+                    {ProgramVersionRepository.ATTRIBUTE_MAPS["Instruction"].get(k, k): v for k, v in item.items()}
+                    for item in value
+                ]
+            elif isinstance(value, dict):
+                value = [{ProgramVersionRepository.ATTRIBUTE_MAPS["Instruction"].get(k, k): v for k, v in value.items()}]
 
-        #     def map_dependency(item):
-        #         if isinstance(item, list):
-        #             # Recursively map and flatten
-        #             flat = []
-        #             for subitem in item:
-        #                 mapped = map_dependency(subitem)
-        #                 if isinstance(mapped, list):
-        #                     flat.extend(mapped)
-        #                 else:
-        #                     flat.append(mapped)
-        #             return flat
-        #         elif isinstance(item, dict):
-        #             mapped = {dep_map.get(k, k): v for k, v in item.items()}
-        #             if "dependency_vars" in mapped and mapped["dependency_vars"]:
-        #                 mapped["dependency_vars"] = map_dependency(mapped["dependency_vars"])
-        #             return mapped
-        #         else:
-        #             return item  # fallback for unexpected types
-
-        #     # Always return a list of dependencies
-        #     if isinstance(value, dict):
-        #         value = [map_dependency(value)]
-        #     elif isinstance(value, list):
-        #         value = map_dependency(value)
+            for step in value:
+                if "ins" in step and step["ins"]:
+                    ast_translation = decode_ins(step["ins"], algorithm_seq=None, program_version=None)
+                    step["ast"] = ast_translation
 
         return mapped_key, value
-
 
     @staticmethod
     def get_program_version(lob: str, progId: str, progVer: str) -> ProgramVersion | None:
         with open(ProgramVersionRepository.XML_FILE, encoding="utf-8") as f:
             doc = xmltodict.parse(
-                f.read(), postprocessor=ProgramVersionRepository._entity_aware_postprocessor, force_list=("seq", "dependency_vars")
+                f.read(), postprocessor=ProgramVersionRepository._entity_aware_postprocessor, force_list=("seq", "dependency_vars", "steps")
             )
 
         progver_data = doc.get("export", {})

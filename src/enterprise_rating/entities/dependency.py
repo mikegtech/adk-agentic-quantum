@@ -4,6 +4,8 @@ from typing import Literal, Union
 
 from pydantic import BaseModel
 
+from enterprise_rating.entities.instruction import Instruction
+
 
 class DependencyBase(BaseModel):
 
@@ -33,7 +35,7 @@ class CalculatedVariable(DependencyBase):
     program_id: str  # Program ID associated with the algorithm
     version: str  # Version of the algorithm
     date_last_modified: str  # Date when the algorithm was last modified
-    ast: list[Instructions]
+    steps: list[Instruction] | None = None
 
 
 class TableVariable(DependencyBase):
