@@ -1,5 +1,6 @@
 import logging
 import os
+from dataclasses import asdict
 from pathlib import Path
 
 import xmltodict
@@ -13,6 +14,7 @@ logger = logging.getLogger(__name__)
 
 class ProgramVersionRepository:  # noqa: D101
     _NO_ARG = object()
+    _current_dependencies = None  # TODO: Look into how to handle dependencies better
     env_xml = os.environ.get("PROGRAM_VERSION_XML")
     if env_xml is None:
         raise RuntimeError(
@@ -197,22 +199,36 @@ class ProgramVersionRepository:  # noqa: D101
                         for item in value
                     ]
 
+            ProgramVersionRepository._current_dependencies = value  # <-- Store dependencies
+
         # Flatten algorithm_seq and map their children
         if mapped_key == "steps":
+            dependencies_list = ProgramVersionRepository._current_dependencies
             # value is already the steps list/dict
-            if isinstance(value, list):
-                value = [
-                    {ProgramVersionRepository.ATTRIBUTE_MAPS["Instruction"].get(k, k): v for k, v in item.items()}
-                    for item in value
-                ]
-            elif isinstance(value, dict):
-                value = [{ProgramVersionRepository.ATTRIBUTE_MAPS["Instruction"].get(k, k): v for k, v in value.items()}]
+            if isinstance(value, dict):
+                # Single dependency
+                value = {ProgramVersionRepository.ATTRIBUTE_MAPS["Instruction"].get(k, k): v for k, v in value.items()}
+            elif isinstance(value, list):
+                # If only one, maybe unwrap
+                if len(value) == 1:
+                    value = {ProgramVersionRepository.ATTRIBUTE_MAPS["Instruction"].get(k, k): v for k, v in value[0].items()}
+                else:
+                    # If more than one, keep as list
+                    value = [
+                        {ProgramVersionRepository.ATTRIBUTE_MAPS["Instruction"].get(k, k): v for k, v in item.items()}
+                        for item in value
+                    ]
 
-            for step in value:
-                if "ins" in step and step["ins"]:
-                    ast_translation = decode_ins(step, algorithm_seq=None, program_version=None)
-                    step["ast"] = ast_translation
+            if "ins" in value:
+                raw_ast_nodes = decode_ins(value, dependencies_list, program_version=None)
+                dict_ast_nodes = [asdict(node) for node in raw_ast_nodes]
 
+                if dict_ast_nodes is None:
+                    value["ast"] = None
+                elif isinstance(dict_ast_nodes, list):
+                    value["ast"] = dict_ast_nodes
+                else:
+                    value["ast"] = [dict_ast_nodes]
         return mapped_key, value
 
     @staticmethod

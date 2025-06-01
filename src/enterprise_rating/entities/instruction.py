@@ -1,18 +1,13 @@
 
-from pydantic import BaseModel, ConfigDict
 
-from enterprise_rating.entities.instruction_ast import InstructionAst
+from typing import Any
+
+from pydantic import BaseModel, ConfigDict
 
 
 class Instruction(BaseModel):
-    """Represents one <i …/> element after xmltodict + Pydantic coercion.
-    Fields correspond exactly to the XML attributes:
-      - n      : step number
-      - t      : instruction type code
-      - ins    : raw instruction string
-      - ins_tar: instruction target (optional)
-      - seq_t  : index of next-if-true (optional)
-      - seq_f  : index of next-if-false (optional)
+    """Represents one <i …/> element (a single algorithm step).
+    We keep an `ast` field as a list of plain dicts (not dataclass instances).
     """
 
     n: int
@@ -21,5 +16,7 @@ class Instruction(BaseModel):
     ins_tar: str | None = None
     seq_t: int | None = None
     seq_f: int | None = None
-    ast: InstructionAst | None = None
+
+    # After decoding, we store a list of JSON‐friendly dicts here
+    ast: list[Any] | None = None
     model_config = ConfigDict(from_attributes=True)
