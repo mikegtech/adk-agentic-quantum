@@ -198,9 +198,8 @@ class ProgramVersionRepository:  # noqa: D101
                     ]
 
         # Flatten algorithm_seq and map their children
-        if (parent == "steps" or key == "i") and isinstance(value, dict) and "i" in value:
-            value = value["i"]
-            # Map each category dict's keys
+        if mapped_key == "steps":
+            # value is already the steps list/dict
             if isinstance(value, list):
                 value = [
                     {ProgramVersionRepository.ATTRIBUTE_MAPS["Instruction"].get(k, k): v for k, v in item.items()}
@@ -211,7 +210,7 @@ class ProgramVersionRepository:  # noqa: D101
 
             for step in value:
                 if "ins" in step and step["ins"]:
-                    ast_translation = decode_ins(step["ins"], algorithm_seq=None, program_version=None)
+                    ast_translation = decode_ins(step, algorithm_seq=None, program_version=None)
                     step["ast"] = ast_translation
 
         return mapped_key, value
