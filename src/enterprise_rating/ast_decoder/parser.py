@@ -124,21 +124,23 @@ def parse_rank_flag(
     if vars_expanded:
         action_text += ": " + ", ".join(vars_expanded)
 
-    return [RawNode(step=step, ins_type=ins_type, value=action_text)]
+    desc = get_var_desc(action_text, algorithm_or_dependency, program_version)
+    return [RawNode(step=step, ins_type=ins_type, raw=action_text, value=desc)]
 
 
 # ──────────────────────────────────────────────────────────────────────────────
 def parse_sort(tokens: list[Token], step: int, ins_type: InsType) -> list[ASTNode]:
     """Stub for Sort instruction."""
     text = "Sort: " + " ".join(t.value for t in tokens)
-    return [RawNode(step=step, ins_type=ins_type, value=text)]
+    return [RawNode(step=step, ins_type=ins_type, raw="", value=text)]
 
 
 # ──────────────────────────────────────────────────────────────────────────────
 def parse_mask(tokens: list[Token], step: int, ins_type: InsType) -> list[ASTNode]:
     """Stub for Mask instruction."""
     text = "Mask: " + " ".join(t.value for t in tokens)
-    return [RawNode(step=step, ins_type=ins_type, value=text)]
+
+    return [RawNode(step=step, ins_type=ins_type, raw="", value=text)]
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -161,7 +163,7 @@ def parse_set_string(
             step=step,
             ins_type=ins_type,
             var=var,
-            expr=RawNode(step=step, ins_type=ins_type, value=literal),
+            expr=RawNode(step=step, ins_type=ins_type, raw="", value=literal),
             target=None,
             next_true=None,
             next_false=None,
@@ -169,17 +171,33 @@ def parse_set_string(
         return [assign]
 
     # Fallback
-    return [RawNode(step=step, ins_type=ins_type, value=" ".join(t.value for t in tokens))]
+    return [RawNode(step=step, ins_type=ins_type, raw="", value=" ".join(t.value for t in tokens))]
 
 
 # ──────────────────────────────────────────────────────────────────────────────
 def parse_string_addition(
     tokens: list[Token], step: int, ins_type: InsType
 ) -> list[ASTNode]:
-    """STRING_ADDITION: treat as a FunctionNode that concatenates strings."""
-    args = [RawNode(step=step, ins_type=ins_type, value=t.value) for t in tokens]
+    """String Addition: build a FunctionNode that concatenates all tokens.
+    We strip out any '[' or ']' characters from each token’s raw text.
+    """
+    # 1) Create one RawNode per token, but remove "[" and "]" from its value:
+    args = []
+    for t in tokens:
+        clean = t.value.replace("[", "").replace("]", "")
+        node = RawNode(step=step, ins_type=ins_type, raw="", value=clean)
+        node.raw = t.value
+        args.append(node)
+
+    # 2) Build a FunctionNode named "StringAddition"
+    #    English summary also uses the cleaned values:
+    english = "Concatenate " + " + ".join(arg.value for arg in args)
     node = FunctionNode(
-        step=step, ins_type=ins_type, name="StringAddition", args=args, english=None
+        step=step,
+        ins_type=ins_type,
+        name="StringAddition",
+        args=args,
+        english=english,
     )
     return [node]
 
@@ -207,8 +225,8 @@ def parse_date_diff(
     name = f"Date Difference ({unit})"
     english = f"Difference in {unit} between {left_val} and {right_val}"
 
-    left_node = RawNode(step=step, ins_type=ins_type, value=left_val)
-    right_node = RawNode(step=step, ins_type=ins_type, value=right_val)
+    left_node = RawNode(step=step, ins_type=ins_type, raw="", value=left_val)
+    right_node = RawNode(step=step, ins_type=ins_type, raw="", value=right_val)
     node = FunctionNode(
         step=step, ins_type=ins_type, name=name, args=[left_node, right_node], english=english
     )
@@ -229,8 +247,8 @@ def parse_date_addition(
         date_val = tokens[0].value if tokens else ""
         offset_val = ""
 
-    date_node = RawNode(step=step, ins_type=ins_type, value=date_val)
-    offset_node = RawNode(step=step, ins_type=ins_type, value=offset_val)
+    date_node = RawNode(step=step, ins_type=ins_type, raw=date_val, value=date_val)
+    offset_node = RawNode(step=step, ins_type=ins_type, raw=offset_val, value=offset_val)
 
     name = "Date Addition"
     english = f"Add {offset_val} to {date_val}"
@@ -262,8 +280,11 @@ def parse_if_date(
     op_val = tokens[1].value if len(tokens) > 1 else ""
     right_val = tokens[2].value if len(tokens) > 2 else ""
 
-    left_node = RawNode(step=step, ins_type=ins_type, value=left_val)
-    right_node = RawNode(step=step, ins_type=ins_type, value=right_val)
+    left_desc = get_var_desc(left_val, algorithm_or_dependency, program_version)
+    left_node = RawNode(step=step, ins_type=ins_type, raw=left_val, value=left_desc)
+
+    right_desc = get_var_desc(left_val, algorithm_or_dependency, program_version)
+    right_node = RawNode(step=step, ins_type=ins_type, raw=right_val, value=right_desc)
     english_op = get_operator_english(op_val)
 
     condition = CompareNode(
@@ -407,8 +428,8 @@ def parse_arithmetic(tokens: list[Token], step: int, ins_type: InsType) -> list[
         operator = tokens[1].value
         right_val = tokens[2].value
 
-        left_node = RawNode(step=step, ins_type=ins_type, value=left_val)
-        right_node = RawNode(step=step, ins_type=ins_type, value=right_val)
+        left_node = RawNode(step=step, ins_type=ins_type, raw=left_val, value=left_val)
+        right_node = RawNode(step=step, ins_type=ins_type, raw=right_val, value=right_val)
         round_eng = get_round_english(round_spec) if round_spec else None
 
         op_eng = get_operator_english(operator)
@@ -428,7 +449,7 @@ def parse_arithmetic(tokens: list[Token], step: int, ins_type: InsType) -> list[
         return [node]
 
     # Fallback
-    return [RawNode(step=step, ins_type=ins_type, value=" ".join(t.value for t in tokens))]
+    return [RawNode(step=step, ins_type=ins_type, raw="", value=" ".join(t.value for t in tokens))]
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -442,7 +463,7 @@ def parse_function(tokens: list[Token], step: int, ins_type: InsType) -> list[AS
         round_spec = round_token[1:]
         tokens = tokens[:-1]
 
-    args = [RawNode(step=step, ins_type=ins_type, value=t.value) for t in tokens]
+    args = [RawNode(step=step, ins_type=ins_type, raw=t.value, value=t.value) for t in tokens]
 
     friendly_map = {
         "POWER": "Power",
@@ -485,7 +506,7 @@ def parse_call(
     step = int(raw_ins.get("n", 0))
     ins_type = InsType(int(raw_ins.get("t", 0)))
     call_text = "Call: " + (raw_ins.get("ins") or "")
-    return [RawNode(step=step, ins_type=ins_type, value=call_text)]
+    return [RawNode(step=step, ins_type=ins_type, raw=call_text, value=call_text)]
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -503,7 +524,7 @@ def parse_data_source(
         step=step,
         ins_type=ins_type,
         name="DataSource",
-        args=[RawNode(step=step, ins_type=ins_type, value=tok.value) for tok in tokens],
+        args=[RawNode(step=step, ins_type=ins_type, raw=tok.value, value=tok.value) for tok in tokens],
         english="DataSource call not implemented",
     )
     return [node]

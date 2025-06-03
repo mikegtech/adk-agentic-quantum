@@ -60,7 +60,7 @@ class ArithmeticNode:
 
 @dataclass
 class FunctionNode:
-    """A generic function‐ or call‐style node (e.g., string concatenation, date‐diff, data‐source).
+    """A generic function or call-style node (e.g., string concatenation, date-diff, data-source).
     """
 
     step: int
@@ -77,7 +77,7 @@ class AssignmentNode:
       - var: the variable being set (e.g., “DGI_110”)
       - expr: a RawNode for the value (literal or variable)
       - target: optional target variable name (if any)
-      - next_true / next_false: reserved for "IF‐style" chaining; often None for SET_STRING
+      - next_true / next_false: reserved for "IF-style" chaining; often None for SET_STRING
     """
 
     step: int

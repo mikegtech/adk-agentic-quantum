@@ -34,6 +34,17 @@ class DependencyBase(BaseModel):
         valid_types = get_args(CalculatedVariable.model_fields['ib_type'].annotation)
         return getattr(self, "ib_type", None) in valid_types
 
+    def is_result_variable(self) -> bool:
+        """Check if this dependency is a ResultVariable based on its ib_type."""
+        # Get all valid ib_type values for CalculatedVariable
+        valid_types = get_args(ResultVariable.model_fields['ib_type'].annotation)
+        return getattr(self, "ib_type", None) in valid_types
+
+    def is_table_variable(self) -> bool:
+        """Check if this dependency is a TableVariable based on its ib_type."""
+        # Get all valid ib_type values for CalculatedVariable
+        valid_types = get_args(TableVariable.model_fields['ib_type'].annotation)
+        return getattr(self, "ib_type", None) in valid_types
 
 class CalculatedVariable(DependencyBase):
     ib_type: Literal["10", "3"]

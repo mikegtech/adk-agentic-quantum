@@ -2,9 +2,7 @@
 
 from enterprise_rating.ast_decoder.defs import split_var_token
 from enterprise_rating.entities.algorithm import Algorithm
-from enterprise_rating.entities.dependency import (DependencyBase,
-                                                   ResultVariable,
-                                                   TableVariable)
+from enterprise_rating.entities.dependency import DependencyBase
 from enterprise_rating.entities.program_version import ProgramVersion
 
 
@@ -74,7 +72,6 @@ def get_var_desc(
                 return iv.description or target_var
         return target_var
 
-
     # 5a) LS → “Results of Step <var_id>”
     if prefix == "LS":
         return f"Results of Step {var_id}"
@@ -82,14 +79,14 @@ def get_var_desc(
     # 5b) PL → Program Lookup Vars (table: LookupVarExt filtered by prog_id and line_id)
     if prefix in {"PL", "GL", "PQ", "GQ"}:
         for dep in deps:  # Pydantic list of LookupVarExt
-            if isinstance(dep, TableVariable) and dep.index == var_id:
+            if isinstance(dep, DependencyBase) and dep.is_table_variable() and dep.index == var_id:
                 return getattr(dep, "description", target_var) or target_var
         return target_var
 
     # 5d) GR / PR → Global Result Vars
     if prefix in {"GR", "PR"}:
         for dep in deps:  # Pydantic list of LookupVarExt
-            if isinstance(dep, ResultVariable) and dep.index == var_id:
+            if isinstance(dep, DependencyBase) and dep.is_result_variable() and dep.index == var_id:
                 return getattr(dep, "description", target_var) or target_var
         return target_var
 
