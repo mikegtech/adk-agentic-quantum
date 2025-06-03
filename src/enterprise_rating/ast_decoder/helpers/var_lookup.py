@@ -2,8 +2,7 @@
 
 from enterprise_rating.ast_decoder.defs import split_var_token
 from enterprise_rating.entities.algorithm import Algorithm
-from enterprise_rating.entities.dependency import (CalculatedVariable,
-                                                   DependencyBase,
+from enterprise_rating.entities.dependency import (DependencyBase,
                                                    ResultVariable,
                                                    TableVariable)
 from enterprise_rating.entities.program_version import ProgramVersion
@@ -97,7 +96,7 @@ def get_var_desc(
     # 5e) PC → Program Calculated Vars (join to instructions-groups for description)
     if prefix in {"PC", "GC", "PP", "GP"}:
         for dep in deps:  # Pydantic list of LookupVarExt
-            if isinstance(dep, CalculatedVariable) and dep.calc_index == var_id:
+            if isinstance(dep, DependencyBase) and dep.is_calculated_variable() and dep.calc_index == var_id:
                 return getattr(dep, "description", target_var) or target_var
         return target_var
 

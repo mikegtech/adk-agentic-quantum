@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from typing import Literal, Union
+from typing import Annotated, Literal, get_args
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from enterprise_rating.entities.instruction import Instruction
 
@@ -28,6 +28,12 @@ class DependencyBase(BaseModel):
         extra = "allow"
         arbitrary_types_allowed = True
 
+    def is_calculated_variable(self) -> bool:
+        """Check if this dependency is a CalculatedVariable based on its ib_type."""
+        # Get all valid ib_type values for CalculatedVariable
+        valid_types = get_args(CalculatedVariable.model_fields['ib_type'].annotation)
+        return getattr(self, "ib_type", None) in valid_types
+
 
 class CalculatedVariable(DependencyBase):
     ib_type: Literal["10", "3"]
@@ -36,7 +42,6 @@ class CalculatedVariable(DependencyBase):
     program_id: str  # Program ID associated with the algorithm
     version: str  # Version of the algorithm
     date_last_modified: str  # Date when the algorithm was last modified
-
 
 
 class TableVariable(DependencyBase):
@@ -56,4 +61,7 @@ class InputVariable(DependencyBase):
     ib_type: Literal["4"]
 
 
-Dependency = Union[CalculatedVariable, TableVariable, ResultVariable, InputVariable]
+Dependency = Annotated[
+    CalculatedVariable | TableVariable | ResultVariable | InputVariable,
+    Field(discriminator="ib_type")
+]
