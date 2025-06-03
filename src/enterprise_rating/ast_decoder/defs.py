@@ -1,5 +1,23 @@
 from enum import Enum
 
+VAR_PREFIXES = {
+    "LS",  # "Results of Step <ID>"
+    "PL",  # "Program Lookup Variables"
+    "GL",  # "Global Lookup Variables"
+    "GI",  # "Global Input Variables"        ← special: use data_dictionary
+    "GR",  # "Global Result Variables"
+    "PR",  # "Global Result Variables" (alias to GR)
+    "PC",  # "Program Calculated Variables"
+    "GC",  # "Global Calculated Variables"
+    "PP",  # "Program Policy Variables"
+    "GP",  # "Global Calculated Variables (type 1)"
+    "IG",  # "Instructions Groups (local)"
+    "LX",  # "System Variable"
+    "IX",  # "System Variable (alias)"
+    "PQ",  # "Local Data Source Variables"
+    "GQ",  # "Global Data Source Variables"
+    # (Your proc also had LX/IX for SYSTEM_VARS; PQ, GQ for data sources.)
+}
 
 class InsType(Enum):
     ARITHMETIC = 0  # Arithmetic
@@ -147,3 +165,35 @@ class JumpIndexInstruction(Enum):
     JUMP_ALWAYS = -2
     JUMP_ON_TRUE = -1
     JUMP_ON_FALSE = 0
+
+
+MULTI_IF_SYMBOL = "#"
+
+
+def split_var_token(token: str) -> tuple[str, int, int | None]:
+    """Given something like "PC_456.2" or "~GI_123" or "DGR_4740", return:
+      (prefix, var_id, sub_id)
+    - Strips any leading "~" or "D" first.
+    - Splits on "_" to get prefix (first two chars) and the rest.
+    - If there's a dot, everything after it is sub_id.
+    """
+    # 1) Remove leading "~" or "D" if present
+    if token.startswith("~") or token.startswith("D"):
+        token = token[1:]
+
+    # 2) Ensure it has form "XX_<something>"
+    if "_" not in token or len(token) < 3:
+        raise ValueError(f"Cannot parse variable token '{token}'")
+
+    prefix = token[:2]
+    rest = token[3:]  # skip "XX_"
+    # If there's a dot, split out sub_id
+    if "." in rest:
+        main_id_str, sub_id_str = rest.split(".", 1)
+        if not main_id_str.isdigit() or not sub_id_str.isdigit():
+            raise ValueError(f"Bad numeric IDs in '{token}'")
+        return prefix, int(main_id_str), int(sub_id_str)
+    else:
+        if not rest.isdigit():
+            raise ValueError(f"Bad numeric ID in '{token}'")
+        return prefix, int(rest), None

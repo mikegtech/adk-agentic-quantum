@@ -15,6 +15,7 @@ class RawNode:
 
     step: int
     ins_type: InsType
+    raw: str
     value: str
 
 

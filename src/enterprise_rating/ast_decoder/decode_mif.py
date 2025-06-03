@@ -1,35 +1,88 @@
-from .ast_nodes import ASTNode
+# enterprise_rating/ast_decoder/decode_mif.py
+
+from .ast_nodes import ASTNode, RawNode
+from .defs import MULTI_IF_SYMBOL
 
 
 def decode_mif(raw_ins: dict, algorithm_or_dependency=None, program_version=None) -> list[ASTNode]:
-    """Decode a “multi‐IF” instruction (the 'ins' string contains one or more '^').
-    We split raw_ins['ins'] on '^', then call decode_ins(...) on each sub‐instruction
-    using the same algorithm_or_dependency wrapper. Finally, we concatenate all ASTNode
-    results into a single flat list.
+    """Decode any instruction whose 'ins' string contains '#' (multi‐IF marker),
+    or '^' (OR), or '+' (AND).  Each sub‐clause is still in the form "|VAR|OP|VALUE|",
+    so we do NOT strip away the '|'—instead, parse_if will split on pipes.
 
-    Args:
-      raw_ins                 dict of instruction fields (keys: 'n','t','ins','ins_tar','seq_t','seq_f')
-      algorithm_or_dependency an Algorithm object or a Dependency object (or None)
-      program_version         a ProgramVersion object (or None)
-
-    Returns:
-      List[ASTNode]
-
+    If decode_ins(...) raises, return a single RawNode containing the exception text.
     """
-    combined_nodes: list[ASTNode] = []
-
-    ins_str = raw_ins.get("ins", "") or ""
-    parts = ins_str.split("^")
-
     from .decoder import decode_ins  # avoid circular import
 
-    for part in parts:
-        # Build a shallow copy of raw_ins, but override 'ins' with this single part
-        sub_raw_ins = raw_ins.copy()
-        sub_raw_ins["ins"] = part
+    combined_nodes: list[ASTNode] = []
+    ins_str = raw_ins.get("ins", "") or ""
 
-        # Call decode_ins using the same algorithm_or_dependency and program_version
-        nodes_for_part = decode_ins(sub_raw_ins, algorithm_or_dependency, program_version)
-        combined_nodes.extend(nodes_for_part)
+    # 1) If '#' present, split into base_part (before '#') and multi_body (after '#').
+    if MULTI_IF_SYMBOL in ins_str:
+        idx_hash = ins_str.index(MULTI_IF_SYMBOL)
+        base_part = ins_str[:idx_hash]
+        multi_body = ins_str[idx_hash + 1 :]
+    else:
+        base_part = ""
+        multi_body = ins_str
+
+    # 2) If there's a nonempty base_part, parse it first as a standalone IF node
+    trimmed_base = base_part.strip()
+    if trimmed_base:
+        sub_raw = raw_ins.copy()
+        sub_raw["ins"] = trimmed_base
+        try:
+            combined_nodes.extend(decode_ins(sub_raw, algorithm_or_dependency, program_version))
+        except Exception as e:
+            step = int(raw_ins.get("n", 0))
+            tval = raw_ins.get("t")
+            try:
+                ins_type_val = int(tval)
+            except:
+                ins_type_val = None
+            combined_nodes.append(
+                RawNode(step=step, ins_type=ins_type_val, raw="", value=f"ERROR: {e}")
+            )
+
+    # 3) Now split multi_body on '^' or '+' (in the order they appear).  We do NOT remove the pipes.
+    fragments: list[str] = []
+    i = 0
+    length = len(multi_body)
+
+    while i < length:
+        idx_caret = multi_body.find("^", i)
+        idx_plus = multi_body.find("+", i)
+
+        # Helper to pick the earliest non-(-1) index
+        def earliest(a: int, b: int) -> int:
+            if a == -1: return b
+            if b == -1: return a
+            return a if a < b else b
+
+        split_idx = earliest(idx_caret, idx_plus)
+
+        if split_idx == -1:
+            # No more '^' or '+'.  The rest is one final fragment.
+            fragments.append(multi_body[i:])
+            break
+        else:
+            fragments.append(multi_body[i:split_idx])
+            i = split_idx + 1
+
+    # 4) For each fragment (still in the form "|VAR|OP|VALUE|"), call decode_ins(...)
+    for fragment in fragments:
+        sub_raw = raw_ins.copy()
+        sub_raw["ins"] = fragment.strip()
+        try:
+            combined_nodes.extend(decode_ins(sub_raw, algorithm_or_dependency, program_version))
+        except Exception as e:
+            step = int(raw_ins.get("n", 0))
+            tval = raw_ins.get("t")
+            try:
+                ins_type_val = int(tval)
+            except:
+                ins_type_val = None
+            combined_nodes.append(
+                RawNode(step=step, ins_type=ins_type_val, raw="", value=f"ERROR: {e}")
+            )
 
     return combined_nodes

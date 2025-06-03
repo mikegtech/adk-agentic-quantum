@@ -13,7 +13,7 @@ class DependencyBase(BaseModel):
     category_id: str  # Category ID associated with the algorithm
     description: str  # Description of the algorithm
     index: int  # Index of the algorithm in the sequence
-    custom_id: int | None = None  # Optional index for the algorithm
+    calc_index: int | None = None  # Optional index for the algorithm
     universal: str = "0"  # Universal flag for the algorithm
     data_type: str | None = None  # Data type of the algorithm
     ib_type: str | None = None  # IB type of the algorithm
@@ -22,6 +22,7 @@ class DependencyBase(BaseModel):
     processed: str | None = None  # Processed flag for the algorithm
     dependency_vars: list[Dependency] | None = None
     # dependency_vars: dict[str, Dependency] | None = None
+    steps: list[Instruction] | None = None
 
     class Config:
         extra = "allow"
@@ -35,7 +36,7 @@ class CalculatedVariable(DependencyBase):
     program_id: str  # Program ID associated with the algorithm
     version: str  # Version of the algorithm
     date_last_modified: str  # Date when the algorithm was last modified
-    steps: list[Instruction] | None = None
+
 
 
 class TableVariable(DependencyBase):

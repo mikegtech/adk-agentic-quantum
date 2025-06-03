@@ -5,7 +5,7 @@ class Input(BaseModel):
     """Represents a input."""
 
     line: str
-    index: str
+    index: int
     data_type: str
     description: str
     category_id: str

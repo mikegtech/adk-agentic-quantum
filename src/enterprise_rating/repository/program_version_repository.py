@@ -5,6 +5,10 @@ from pathlib import Path
 
 import xmltodict
 
+from enterprise_rating.ast_decoder.ast_nodes import (ArithmeticNode,
+                                                     AssignmentNode,
+                                                     CompareNode, FunctionNode,
+                                                     IfNode, RawNode)
 from enterprise_rating.ast_decoder.decoder import decode_ins  # noqa: F401
 from enterprise_rating.entities.dependency import (CalculatedVariable,
                                                    DependencyBase)
@@ -90,7 +94,7 @@ class ProgramVersionRepository:  # noqa: D101
             "@rk": "revision_key",
             "@i": "index",
             "@v": "version",
-            "@cid": "custom_id",
+            "@cid": "calc_index",
             "@d": "description",
             "@alg": "alg_type",
             "@cat": "category_id",
@@ -225,54 +229,94 @@ class ProgramVersionRepository:  # noqa: D101
         return mapped_key, value
 
     @staticmethod
+    def _node_to_dict(obj) -> dict | list | str | int | None:
+        """Recursively convert an ASTNode (or list of ASTNode) into a plain python dict/list.
+        If obj is an ASTNode subclass, we convert its __dict__ but recurse on any nested ASTNode or list.
+        Otherwise, return obj as-is (e.g. str, int).
+        """
+        # 1) If it’s exactly None, return None
+        if obj is None:
+            return None
+
+        # 2) If it’s a list, convert each element
+        if isinstance(obj, list):
+            return [ProgramVersionRepository._node_to_dict(item) for item in obj]
+
+        # 3) If it’s one of our ASTNode subclasses, convert it
+        if isinstance(obj, (RawNode, CompareNode, IfNode, ArithmeticNode, FunctionNode, AssignmentNode)):
+            result = {}
+            for key, val in obj.__dict__.items():
+                result[key] = ProgramVersionRepository._node_to_dict(val)
+            return result
+
+        # 4) Otherwise (primitives: str, int, etc.), return raw
+        return obj
+
+    @staticmethod
     def process_all_instructions(progver: ProgramVersion):
 
-        # 1) Process each AlgorithmSequence → each Algorithm
+        # 1) Iterate over every AlgorithmSequence → every Algorithm
         for alg_seq in progver.algorithm_seq:
             algorithm = alg_seq.algorithm
 
-            # 1.a) Process steps directly on this Algorithm
-            main_steps = algorithm.steps or []
+            # 1.a) Process steps that live directly on this Algorithm
+            # 1.b) Process every DependencyBase under this Algorithm (including nested CalculatedVariable chains)
+            dependency_vars = getattr(algorithm, "dependency_vars", []) or []
+
+            main_steps = getattr(algorithm, "steps", []) or []
             for instr in main_steps:
+                # At this point, instr must be an Instruction model (not a dict).
+                # Its ast field was defined as: ast: list[Any]|None = None
                 if instr.ast is None:
                     try:
+                        # Produce a plain dict to hand into decode_ins(...)
                         raw_dict = instr.model_dump()
-                        nodes = decode_ins(raw_dict, algorithm, progver)
+                        nodes = decode_ins(raw_dict, dependency_vars, progver)
+                        # Store back as list of dicts (as your Instruction.ast is a list[Any])
                         instr.ast = [asdict(n) for n in nodes] if nodes else []
-                    except Exception:
-                        instr.ast = []
+                        # instr.ast = [
+                        #    ProgramVersionRepository._node_to_dict(n) for n in nodes
+                        # ]
+                    except Exception as e:
+                        error_node = RawNode(
+                            step=int(raw_dict.get("n", 0)),
+                            ins_type=int(raw_dict.get("t", 0)) if raw_dict.get("t") is not None else None,
+                            raw="",
+                            value=f"Repository ERROR: {e}"
+                        )
+                        instr.ast = [ProgramVersionRepository._node_to_dict(error_node)]
 
-            # 1.b) Process dependency chain:
-            #      if a dependency is a CalculatedVariable, it may have its own nested dependencies
-            dependency_vars = getattr(algorithm, "dependency_vars", []) or []
             queue: list[DependencyBase] = []
             for dep in dependency_vars:
                 queue.append(dep)
 
             while queue:
                 dep = queue.pop(0)
-                # Process this dependency's steps
-                dep_steps = dep.steps or []
+                dep_vars = getattr(dep, "dependency_vars", []) or []
+
+                # Process this dependency’s own steps (each should be an Instruction model)
+                dep_steps = getattr(dep, "steps", []) or []
                 for instr in dep_steps:
                     if instr.ast is None:
                         try:
                             raw_dict = instr.model_dump()
-                            nodes = decode_ins(raw_dict, dep, progver)
+                            nodes = decode_ins(raw_dict, dep_vars, progver)
                             instr.ast = [asdict(n) for n in nodes] if nodes else []
                         except Exception:
                             instr.ast = []
 
-                # If this dependency is a CalculatedVariable, enqueue any nested dependencies
+                # If this dependency is a CalculatedVariable, enqueue its nested dependency_vars
                 if isinstance(dep, CalculatedVariable):
-                    nested_deps = getattr(dep, "dependency_vars", []) or []
-                    for nd in nested_deps:
+                    nested = getattr(dep, "dependency_vars", []) or []
+                    for nd in nested:
                         queue.append(nd)
+
 
     @staticmethod
     def get_program_version(lob: str, progId: str, progVer: str) -> ProgramVersion | None:
         with open(ProgramVersionRepository.XML_FILE, encoding="utf-8") as f:
             doc = xmltodict.parse(
-                f.read(), postprocessor=ProgramVersionRepository._entity_aware_postprocessor, force_list=("seq", "dependency_vars", "steps", "i")
+                f.read(), postprocessor=ProgramVersionRepository._entity_aware_postprocessor, force_list=("seq", "dependency_vars", "steps", "i", "ast")
             )
 
         progver_data = doc.get("export", {})

@@ -1,6 +1,7 @@
 # enterprise_rating/ast_decoder/parser.py
 
-from enterprise_rating.ast_decoder.helpers.var_extractor import find_next_var
+
+from enterprise_rating.ast_decoder.defs import MULTI_IF_SYMBOL
 
 from .ast_nodes import (ArithmeticNode, AssignmentNode, ASTNode, CompareNode,
                         FunctionNode, IfNode, RawNode)
@@ -39,13 +40,15 @@ def parse(
     step = int(raw_ins.get("n", 0))
     ins_str = raw_ins.get("ins", "") or ""
 
-    # 1) Multi‐IF detection (caret‐separated conditions)
-    if "^" in ins_str:
+    # 1) If there's a '#' anywhere, jump to decode_mif
+    if MULTI_IF_SYMBOL in ins_str or '^' in ins_str or '+' in ins_str:
         return decode_mif(raw_ins, algorithm_or_dependency, program_version)
 
-    # 2) Ranking & Flag instructions: handled generically
-    if ins_type and (ins_type.name.startswith("RANK") or ins_type.name.startswith("FLAG")):
-        return parse_rank_flag(tokens, step, ins_type, algorithm_or_dependency, program_version)
+
+
+    # 2) Otherwise, if this is a plain IF, call parse_if
+    if ins_type == InsType.IF:
+        return parse_if(tokens, raw_ins, algorithm_or_dependency, program_version)
 
     # 3) InsType dispatch map
     dispatch_map = {
@@ -87,7 +90,8 @@ def parse(
             return parser_func(tokens, step, ins_type)
 
     # 4) Fallback: if no InsType matched, produce a RawNode
-    return [RawNode(step=step, ins_type=ins_type, value=ins_str)]
+    desc = get_var_desc(ins_str, algorithm_or_dependency, program_version)
+    return [RawNode(step=step, ins_type=ins_type, raw=ins_str, value=desc)]
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -307,71 +311,82 @@ def parse_if_date(
 
 # ──────────────────────────────────────────────────────────────────────────────
 def parse_if(
-    tokens: list[Token], raw_ins: dict, algorithm_or_dependency=None, program_version=None
-) -> list[ASTNode]:
-    """Parse a standard IF instruction (InsType.IF).
-    Uses find_next_var() to extract left, operator, right (and any rounding),
-    then wires up true/false branches using seq_t/seq_f if algorithm_or_dependency is provided.
+    tokens: list["Token"],
+    raw_ins: dict,
+    algorithm_or_dependency=None,
+    program_version=None,
+) -> list["ASTNode"]:
+    """Parse a single‐clause IF of the form "|VAR|OP|VALUE|" (e.g. "|GR_5370|=|{}|").
+    We assume callers (decode_mif or parse) never strip the pipes before we run this.
     """
     from .decoder import decode_ins  # avoid circular import
 
     step = int(raw_ins.get("n", 0))
     ins_type = InsType(int(raw_ins.get("t", 0)))
-    ins_str = raw_ins.get("ins", "") or ""
+    ins_str = raw_ins.get("ins", "") or ""  # e.g. "|~GI_494|<>|GC_691|"
 
-    # --- Use find_next_var to extract the left operand and operator ---
-    str_ptr = 0
-    next_var, next_op, round_var, next_op_obj, round_var_obj, next_var_ptr = find_next_var(
-        str_ptr, ins_str, str(ins_type.value)
-    )
-    left_node = RawNode(step=step, ins_type=ins_type, value=next_var)
+    # 1) Split on '|' – we expect ["", VAR, OP, VALUE, ""]
+    parts = ins_str.split("|")
+    if len(parts) >= 4:
+        left_val = parts[1]
+        operator = parts[2]
+        right_val = parts[3]
+    else:
+        # If unexpected format, capture entire string as left_val
+        left_val = ins_str
+        operator = ""
+        right_val = ""
 
-    # Advance pointer past operator & any round token
-    str_ptr = next_var_ptr + len(next_var) + len(next_op_obj) + len(round_var_obj)
-
-    # Extract the right operand
-    right_var, right_op, right_round, right_op_obj, right_round_obj, right_var_ptr = find_next_var(
-        str_ptr, ins_str, str(ins_type.value)
-    )
-    right_node = RawNode(step=step, ins_type=ins_type, value=right_var)
+    desc_left = get_var_desc(left_val, algorithm_or_dependency, program_version)
+    left_node = RawNode(step=step, ins_type=ins_type.value, raw=left_val, value=desc_left)
+    desc_right = get_var_desc(right_val, algorithm_or_dependency, program_version)
+    right_node = RawNode(step=step, ins_type=ins_type.value, raw=right_val, value=desc_right)
 
     condition = CompareNode(
         step=step,
-        ins_type=ins_type,
+        ins_type=ins_type.value,
         left=left_node,
-        operator=next_op_obj or next_op,
+        operator=operator,
         right=right_node,
-        english=next_op,
+        english=""
     )
 
-    # Next‐step pointers
+    node = IfNode(step=step, ins_type=ins_type.value, condition=condition, true_branch=[], false_branch=[])
+
+    # 2) Wire up true/false branches via seq_t / seq_f if available
     seq_t = raw_ins.get("seq_t")
     seq_f = raw_ins.get("seq_f")
     try:
         next_true = int(seq_t)
-    except:
+    except (TypeError, ValueError):
         next_true = None
     try:
         next_false = int(seq_f)
-    except:
+    except (TypeError, ValueError):
         next_false = None
 
-    node = IfNode(step=step, ins_type=ins_type, condition=condition, true_branch=[], false_branch=[])
-
-    # If algorithm_or_dependency has .steps, wire the branches
     if algorithm_or_dependency is not None and hasattr(algorithm_or_dependency, "steps"):
         raw_steps = algorithm_or_dependency.steps or []
         steps_list = raw_steps if isinstance(raw_steps, list) else [raw_steps]
 
+        # True branch
         if next_true is not None:
             raw_true = next((i for i in steps_list if int(i.get("n", 0)) == next_true), None)
             if raw_true:
-                node.true_branch = decode_ins(raw_true, algorithm_or_dependency, program_version)
+                try:
+                    node.true_branch = decode_ins(raw_true, algorithm_or_dependency, program_version)
+                except Exception as e:
+                    # On error, insert a RawNode with the exception text into true_branch
+                    node.true_branch = [RawNode(step=step, ins_type=ins_type.value, raw="", value=f"ERROR: {e}")]
 
+        # False branch
         if next_false is not None:
             raw_false = next((i for i in steps_list if int(i.get("n", 0)) == next_false), None)
             if raw_false:
-                node.false_branch = decode_ins(raw_false, algorithm_or_dependency, program_version)
+                try:
+                    node.false_branch = decode_ins(raw_false, algorithm_or_dependency, program_version)
+                except Exception as e:
+                    node.false_branch = [RawNode(step=step, ins_type=ins_type.value, raw="", value=f"ERROR: {e}")]
 
     return [node]
 
@@ -457,6 +472,20 @@ def parse_function(tokens: list[Token], step: int, ins_type: InsType) -> list[AS
 
     node = FunctionNode(step=step, ins_type=ins_type, name=ins_type.name, args=args, english=english)
     return [node]
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+def parse_call(
+    tokens: list[Token], raw_ins: dict, algorithm_or_dependency=None, program_version=None
+) -> list[ASTNode]:
+    """Stub for CALL instruction.
+    This can be updated later to construct an actual FunctionNode or similar.
+    For now, we produce a RawNode placeholder.
+    """
+    step = int(raw_ins.get("n", 0))
+    ins_type = InsType(int(raw_ins.get("t", 0)))
+    call_text = "Call: " + (raw_ins.get("ins") or "")
+    return [RawNode(step=step, ins_type=ins_type, value=call_text)]
 
 
 # ──────────────────────────────────────────────────────────────────────────────
