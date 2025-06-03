@@ -5,7 +5,9 @@ from pathlib import Path
 
 import xmltodict
 
-from enterprise_rating.ast_decoder.decoder import decode_ins
+from enterprise_rating.ast_decoder.decoder import decode_ins  # noqa: F401
+from enterprise_rating.entities.dependency import (CalculatedVariable,
+                                                   DependencyBase)
 from enterprise_rating.entities.program_version import \
     ProgramVersion  # wherever you defined your Pydantic models
 
@@ -14,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 class ProgramVersionRepository:  # noqa: D101
     _NO_ARG = object()
-    _current_dependencies = None  # TODO: Look into how to handle dependencies better
+
     env_xml = os.environ.get("PROGRAM_VERSION_XML")
     if env_xml is None:
         raise RuntimeError(
@@ -203,7 +205,6 @@ class ProgramVersionRepository:  # noqa: D101
 
         # Flatten algorithm_seq and map their children
         if mapped_key == "steps":
-            dependencies_list = ProgramVersionRepository._current_dependencies
             # value is already the steps list/dict
             if isinstance(value, dict):
                 # Single dependency
@@ -219,23 +220,59 @@ class ProgramVersionRepository:  # noqa: D101
                         for item in value
                     ]
 
-            if "ins" in value:
-                raw_ast_nodes = decode_ins(value, dependencies_list, program_version=None)
-                dict_ast_nodes = [asdict(node) for node in raw_ast_nodes]
+            value["ast"] = None
 
-                if dict_ast_nodes is None:
-                    value["ast"] = None
-                elif isinstance(dict_ast_nodes, list):
-                    value["ast"] = dict_ast_nodes
-                else:
-                    value["ast"] = [dict_ast_nodes]
         return mapped_key, value
+
+    @staticmethod
+    def process_all_instructions(progver: ProgramVersion):
+
+        # 1) Process each AlgorithmSequence → each Algorithm
+        for alg_seq in progver.algorithm_seq:
+            algorithm = alg_seq.algorithm
+
+            # 1.a) Process steps directly on this Algorithm
+            main_steps = algorithm.steps or []
+            for instr in main_steps:
+                if instr.ast is None:
+                    try:
+                        raw_dict = instr.model_dump()
+                        nodes = decode_ins(raw_dict, algorithm, progver)
+                        instr.ast = [asdict(n) for n in nodes] if nodes else []
+                    except Exception:
+                        instr.ast = []
+
+            # 1.b) Process dependency chain:
+            #      if a dependency is a CalculatedVariable, it may have its own nested dependencies
+            dependency_vars = getattr(algorithm, "dependency_vars", []) or []
+            queue: list[DependencyBase] = []
+            for dep in dependency_vars:
+                queue.append(dep)
+
+            while queue:
+                dep = queue.pop(0)
+                # Process this dependency's steps
+                dep_steps = dep.steps or []
+                for instr in dep_steps:
+                    if instr.ast is None:
+                        try:
+                            raw_dict = instr.model_dump()
+                            nodes = decode_ins(raw_dict, dep, progver)
+                            instr.ast = [asdict(n) for n in nodes] if nodes else []
+                        except Exception:
+                            instr.ast = []
+
+                # If this dependency is a CalculatedVariable, enqueue any nested dependencies
+                if isinstance(dep, CalculatedVariable):
+                    nested_deps = getattr(dep, "dependency_vars", []) or []
+                    for nd in nested_deps:
+                        queue.append(nd)
 
     @staticmethod
     def get_program_version(lob: str, progId: str, progVer: str) -> ProgramVersion | None:
         with open(ProgramVersionRepository.XML_FILE, encoding="utf-8") as f:
             doc = xmltodict.parse(
-                f.read(), postprocessor=ProgramVersionRepository._entity_aware_postprocessor, force_list=("seq", "dependency_vars", "steps")
+                f.read(), postprocessor=ProgramVersionRepository._entity_aware_postprocessor, force_list=("seq", "dependency_vars", "steps", "i")
             )
 
         progver_data = doc.get("export", {})
@@ -243,6 +280,9 @@ class ProgramVersionRepository:  # noqa: D101
         if progver_data is None:
             return None
 
+        progver = ProgramVersion.model_validate(progver_data)
+        ProgramVersionRepository.process_all_instructions(progver)
+
         # Extract the relevant data for the ProgramVersion entity
         # Let Pydantic coerce types, apply defaults, and validate
-        return ProgramVersion.model_validate(progver_data)
+        return progver
