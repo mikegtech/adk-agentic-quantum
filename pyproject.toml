@@ -11,6 +11,7 @@ dependencies = [
     "xmltodict",
     "pathlib",
     "xml_utils",
+    "absl-py",
 ]
 
 dynamic = ['version']

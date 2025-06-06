@@ -1,0 +1,32 @@
+version: '3.8'
+
+services:
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: qdrant
+    ports:
+      - "6333:6333"
+    volumes:
+      - qdrant_data:/qdrant/storage
+    # Expose default HTTP port 6333
+
+  agent:
+    build:
+      context: ./src/enterprise_agent
+      dockerfile: Dockerfile
+    container_name: adk_agent
+    depends_on:
+      - qdrant
+    environment:
+      # ADK-specific environment variables (if needed)
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - QDRANT_HOST=qdrant
+      - QDRANT_PORT=6333
+      - QDRANT_COLLECTION=adk_memory
+    # Expose any ports if your agent serves an HTTP endpoint, otherwise not needed
+    # ports:
+    #   - "8000:8000"
+    tty: true
+
+volumes:
+  qdrant_data:

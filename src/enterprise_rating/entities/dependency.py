@@ -25,7 +25,7 @@ class DependencyBase(BaseModel):
     steps: list[Instruction] | None = None
 
     class Config:
-        extra = "allow"
+        extra = "ignore"  # Ignore extra fields not defined in the model
         arbitrary_types_allowed = True
 
     def is_calculated_variable(self) -> bool:
@@ -45,6 +45,7 @@ class DependencyBase(BaseModel):
         # Get all valid ib_type values for CalculatedVariable
         valid_types = get_args(TableVariable.model_fields['ib_type'].annotation)
         return getattr(self, "ib_type", None) in valid_types
+
 
 class CalculatedVariable(DependencyBase):
     ib_type: Literal["10", "3"]

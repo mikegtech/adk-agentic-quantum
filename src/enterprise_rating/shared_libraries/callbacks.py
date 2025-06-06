@@ -29,7 +29,8 @@ from google.adk.tools.tool_context import ToolContext
 from jsonschema import ValidationError
 
 from enterprise_rating.entities.program_version import ProgramVersion
-from enterprise_rating.repository.program_version_repository import ProgramVersionRepository
+from enterprise_rating.repository.program_version_repository import \
+    ProgramVersionRepository
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
@@ -161,7 +162,7 @@ def before_agent(callback_context: InvocationContext):
     # In a production agent, this is set as part of the
     # session creation for the agent.
     if "program_profile" not in callback_context.state:
-        callback_context.state["customer_profile"] = ProgramVersionRepository.get_program_version(
+        callback_context.state["program_version_state"] = ProgramVersionRepository.get_program_version(
             "123", "123", "1"
         ).model_dump_json()
 
@@ -173,4 +174,4 @@ def before_agent(callback_context: InvocationContext):
     os.makedirs(folder_path, exist_ok=True)
 
     with open(file_path, "w", encoding="utf-8") as f:
-        f.write(callback_context.state["customer_profile"])
+        f.write(callback_context.state["program_version_state"])
