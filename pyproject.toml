@@ -12,6 +12,9 @@ dependencies = [
     "pathlib",
     "xml_utils",
     "absl-py",
+    "pyyaml",
+    "loguru==0.7.3",
+    "jsonschema",
 ]
 
 dynamic = ['version']
@@ -29,8 +32,19 @@ dev = [
     "google-cloud-aiplatform[evaluation]>=1.88.0",
     "pre-commit",
     "types-xmltodict",
+    "types-PyYAML",
+    "types-jsonschema",
+    "rich",
 ]
-test = []
+
+test = [
+    "pre-commit>=4.1.0, <5",
+    "delta-spark==3.3.0",
+    "pyspark==3.5.5",
+    "pytest>=8.3.5",
+    "pytest-cov >=6.1.0",
+    "pydantic-settings>=2.8.1",
+]
 
 ci = []
 

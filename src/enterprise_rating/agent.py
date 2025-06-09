@@ -25,10 +25,11 @@ import warnings
 
 from google.adk import Agent
 
+from enterprise_rating.tools.tools import get_rating_algorithms, get_releases
+
 from .config import Config
 from .prompts import GLOBAL_INSTRUCTION, INSTRUCTION
 from .shared_libraries.callbacks import after_tool, before_agent, before_tool, rate_limit_callback
-from .tools.tools import validate_instruction
 
 warnings.filterwarnings("ignore", category=UserWarning, module=".*pydantic.*")
 
@@ -41,7 +42,8 @@ root_agent = Agent(
     global_instruction=GLOBAL_INSTRUCTION,  # system-level guardrails
     instruction=INSTRUCTION,  # conversation-level prompt
     tools=[
-        validate_instruction,
+        get_rating_algorithms,
+        get_releases,
     ],
     # optional callbacks for tracing / metrics / rate limiting
     before_tool_callback=before_tool,

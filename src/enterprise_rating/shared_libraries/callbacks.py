@@ -29,8 +29,7 @@ from google.adk.tools.tool_context import ToolContext
 from jsonschema import ValidationError
 
 from enterprise_rating.entities.program_version import ProgramVersion
-from enterprise_rating.repository.program_version_repository import \
-    ProgramVersionRepository
+from enterprise_rating.repository.program_version_repository import ProgramVersionRepository
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
@@ -38,7 +37,7 @@ logger.setLevel(logging.DEBUG)
 RATE_LIMIT_SECS = 60
 RPM_QUOTA = 10
 # Get the root directory (assuming your script is somewhere under src/)
-ROOT = Path(__file__).resolve().parent.parent.parent  # Adjust .parent as needed!
+ROOT = Path(__file__).resolve().parent.parent.parent.parent  # Adjust .parent as needed!
 
 
 def rate_limit_callback(callback_context: CallbackContext, llm_request: LlmRequest) -> None:
@@ -113,13 +112,13 @@ def validate_program_version_id(program_version_id: str, session_state: State) -
         what actions to take to remediate.
 
     """
-    if "program_profile" not in session_state:
+    if "program_version_state" not in session_state:
         return False, "No program profile selected. Please select a profile."
 
     try:
         # We read the profile from the state, where it is set deterministically
         # at the beginning of the session.
-        p = ProgramVersion.model_validate_json(session_state["program_profile"])
+        p = ProgramVersion.model_validate_json(session_state["program_version_state"])
         if program_version_id == p.ver:
             return True, None
         else:
@@ -161,7 +160,7 @@ def after_tool(tool: BaseTool, args: dict[str, Any], tool_context: ToolContext, 
 def before_agent(callback_context: InvocationContext):
     # In a production agent, this is set as part of the
     # session creation for the agent.
-    if "program_profile" not in callback_context.state:
+    if "program_version_state" not in callback_context.state:
         callback_context.state["program_version_state"] = ProgramVersionRepository.get_program_version(
             "123", "123", "1"
         ).model_dump_json()

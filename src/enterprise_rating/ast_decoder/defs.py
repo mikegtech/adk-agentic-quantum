@@ -20,6 +20,9 @@ VAR_PREFIXES = {
 }
 
 class InsType(Enum):
+    """Enumeration of instruction types used in the enterprise rating AST decoder."""
+
+    UNKNOWN = -1  # Invalid Type
     ARITHMETIC = 0  # Arithmetic
     IF = 1  # IF
     CALL = 2  # Call

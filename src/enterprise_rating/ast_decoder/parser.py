@@ -1,10 +1,11 @@
-# enterprise_rating/ast_decoder/parser.py
-
-
+# noqa: F401, F841, ARG001
+# pylint: disable=unused-import, unused-variable, unused-argument, missing-module-docstring
 from enterprise_rating.ast_decoder.defs import MULTI_IF_SYMBOL
+from enterprise_rating.entities.algorithm import Algorithm
+from enterprise_rating.entities.dependency import DependencyBase
+from enterprise_rating.entities.program_version import ProgramVersion
 
-from .ast_nodes import (ArithmeticNode, AssignmentNode, ASTNode, CompareNode,
-                        FunctionNode, IfNode, RawNode)
+from .ast_nodes import ArithmeticNode, AssignmentNode, ASTNode, CompareNode, FunctionNode, IfNode, RawNode
 from .decode_mif import decode_mif
 from .defs import InsType
 from .helpers.ins_helpers import get_operator_english, get_round_english
@@ -16,26 +17,26 @@ from .tokenizer import Token
 def parse(
     tokens: list[Token],
     raw_ins: dict,
-    algorithm_or_dependency=None,
-    program_version=None,
+    algorithm_or_dependency: Algorithm | DependencyBase | None = None,
+    program_version: ProgramVersion | None = None,
 ) -> list[ASTNode]:
     """Main parser dispatcher: inspects InsType and directs to the appropriate subparser.
     Supports algorithm_or_dependency=None or program_version=None by skipping any lookups/jumps.
 
     Args:
-      tokens                   list of Token objects (from tokenize(raw_ins['ins']))
-      raw_ins                  dict of instruction fields ('n','t','ins','ins_tar','seq_t','seq_f', etc.)
-      algorithm_or_dependency  an Algorithm object or a Dependency object (or None)
-      program_version          a ProgramVersion object (or None)
+      tokens: list of Token objects (from tokenize(raw_ins['ins'])).
+      raw_ins: dict of instruction fields ('n','t','ins','ins_tar','seq_t','seq_f', etc.).
+      algorithm_or_dependency: an Algorithm object or a Dependency object (or None).
+      program_version: a ProgramVersion object (or None).
 
     Returns:
-      List[ASTNode]
+      List[ASTNode]: The parsed AST nodes for the instruction.
 
     """
     try:
-        ins_type = InsType(int(raw_ins.get("t", 0)))
+        ins_type = InsType(int(raw_ins.get("t", InsType.UNKNOWN)))
     except (ValueError, TypeError):
-        ins_type = None
+        ins_type = InsType.UNKNOWN
 
     step = int(raw_ins.get("n", 0))
     ins_str = raw_ins.get("ins", "") or ""
@@ -81,13 +82,13 @@ def parse(
         InsType.DATA_SOURCE: parse_data_source,
     }
 
-    parser_func = dispatch_map.get(ins_type)
-    if parser_func:
+    parser_func = dispatch_map.get(ins_type) if ins_type is not None else None
+    if parser_func is not None:
         # Some parsers need raw_ins + algorithm_or_dependency + program_version
         if parser_func in (parse_if, parse_if_date, parse_data_source):
-            return parser_func(tokens, raw_ins, algorithm_or_dependency, program_version)
-        else:
-            return parser_func(tokens, step, ins_type)
+            return parser_func(tokens, raw_ins, algorithm_or_dependency, program_version) # type: ignore
+
+        return parser_func(tokens, step, ins_type, algorithm_or_dependency, program_version) # type: ignore
 
     # 4) Fallback: if no InsType matched, produce a RawNode
     desc = get_var_desc(ins_str, algorithm_or_dependency, program_version)
@@ -99,8 +100,8 @@ def parse_rank_flag(
     tokens: list[Token],
     step: int,
     ins_type: InsType,
-    algorithm_or_dependency=None,
-    program_version=None,
+    algorithm_or_dependency: Algorithm | DependencyBase | None = None,
+    program_version: ProgramVersion | None = None,
 ) -> list[ASTNode]:
     """Generic parser for any InsType whose name begins with 'RANK' or 'FLAG'.
     If algorithm_or_dependency or program_version is None, we skip get_var_desc lookups.
@@ -129,14 +130,18 @@ def parse_rank_flag(
 
 
 # ──────────────────────────────────────────────────────────────────────────────
-def parse_sort(tokens: list[Token], step: int, ins_type: InsType) -> list[ASTNode]:
+def parse_sort(tokens: list[Token], step: int, ins_type: InsType,
+    algorithm_or_dependency: Algorithm | DependencyBase | None = None,
+    program_version: ProgramVersion | None = None,) -> list[ASTNode]:
     """Stub for Sort instruction."""
     text = "Sort: " + " ".join(t.value for t in tokens)
     return [RawNode(step=step, ins_type=ins_type, raw="", value=text)]
 
 
 # ──────────────────────────────────────────────────────────────────────────────
-def parse_mask(tokens: list[Token], step: int, ins_type: InsType) -> list[ASTNode]:
+def parse_mask(tokens: list[Token], step: int, ins_type: InsType,
+    algorithm_or_dependency: Algorithm | DependencyBase | None = None,
+    program_version: ProgramVersion | None = None,) -> list[ASTNode]:
     """Stub for Mask instruction."""
     text = "Mask: " + " ".join(t.value for t in tokens)
 
@@ -144,14 +149,18 @@ def parse_mask(tokens: list[Token], step: int, ins_type: InsType) -> list[ASTNod
 
 
 # ──────────────────────────────────────────────────────────────────────────────
-def parse_empty(tokens: list[Token], step: int, ins_type: InsType) -> list[ASTNode]:
+def parse_empty(tokens: list[Token], step: int, ins_type: InsType,
+    algorithm_or_dependency: Algorithm | DependencyBase | None = None,
+    program_version: ProgramVersion | None = None,) -> list[ASTNode]:
     """Empty instruction (no‐op)."""
     return []
 
 
 # ──────────────────────────────────────────────────────────────────────────────
 def parse_set_string(
-    tokens: list[Token], step: int, ins_type: InsType
+    tokens: list[Token], step: int, ins_type: InsType,
+    algorithm_or_dependency: Algorithm | DependencyBase | None = None,
+    program_version: ProgramVersion | None = None,
 ) -> list[ASTNode]:
     """Set String: usually of the form VAR [literal].
     Produces an AssignmentNode where expr is a RawNode(string literal).
@@ -176,66 +185,76 @@ def parse_set_string(
 
 # ──────────────────────────────────────────────────────────────────────────────
 def parse_string_addition(
-    tokens: list[Token], step: int, ins_type: InsType
+    tokens: list[Token],
+    raw_ins: dict,
+    algorithm_or_dependency: Algorithm | DependencyBase | None = None,
+    program_version: ProgramVersion | None = None,
 ) -> list[ASTNode]:
-    """String Addition: build a FunctionNode that concatenates all tokens.
-    We strip out any '[' or ']' characters from each token’s raw text.
+    """String Addition: build a FunctionNode that concatenates all tokens,
+    stripping '[' and ']' but preserving them in `raw`, and looking up
+    human-friendly descriptions for each piece and for the overall summary.
     """
-    # 1) Create one RawNode per token, but remove "[" and "]" from its value:
-    args = []
+    # 1) pull step and ins_type out of the raw_ins dict
+    step     = int(raw_ins.get("n", 0))
+    ins_type = InsType(int(raw_ins.get("t", 0)))
+
+    # 2) build a RawNode for each token, stripping brackets only for lookup
+    args: list[RawNode] = []
     for t in tokens:
-        clean = t.value.replace("[", "").replace("]", "")
-        node = RawNode(step=step, ins_type=ins_type, raw="", value=clean)
-        node.raw = t.value
-        args.append(node)
+        original = t.value
+        clean    = original.replace("[", "").replace("]", "")
+        desc     = get_var_desc(clean, algorithm_or_dependency, program_version)
+        args.append(
+            RawNode(step=step, ins_type=ins_type, raw=original, value=desc)
+        )
 
-    # 2) Build a FunctionNode named "StringAddition"
-    #    English summary also uses the cleaned values:
-    english = "Concatenate " + " + ".join(arg.value for arg in args)
-    node = FunctionNode(
-        step=step,
-        ins_type=ins_type,
-        name="StringAddition",
-        args=args,
-        english=english,
-    )
-    return [node]
-
+    return [
+        FunctionNode(
+            step=step,
+            ins_type=ins_type,
+            name="StringAddition",
+            args=args,
+            # english omitted; renderer will handle
+        )
+    ]
 
 # ──────────────────────────────────────────────────────────────────────────────
 def parse_date_diff(
-    tokens: list[Token], step: int, ins_type: InsType
+    tokens: list[Token], step: int, ins_type: InsType,
+    algorithm_or_dependency: Algorithm | DependencyBase | None = None,
+    program_version: ProgramVersion | None = None,
 ) -> list[ASTNode]:
-    """Parse Date Diff instructions (DATE_DIFF_DAYS, etc.).
-    Builds a FunctionNode with English description of the difference.
-    """
+    """Parse DATE_DIFF_* into a FunctionNode; all verbalization happens in renderer.py."""
+    # 1) pull out the raw token values
     if len(tokens) >= 2:
-        left_val = tokens[0].value
-        right_val = tokens[1].value
+        left_val, right_val = tokens[0].value, tokens[1].value
     else:
         left_val = tokens[0].value if tokens else ""
         right_val = ""
 
-    unit_map = {
-        InsType.DATE_DIFF_DAYS: "Days",
-        InsType.DATE_DIFF_MONTHS: "Months",
-        InsType.DATE_DIFF_YEARS: "Years",
-    }
-    unit = unit_map.get(ins_type, "")
-    name = f"Date Difference ({unit})"
-    english = f"Difference in {unit} between {left_val} and {right_val}"
+    # 2) look up their “nice” descriptions, but do *not* build any English sentence here
+    left_desc  = get_var_desc(left_val, None, None)
+    right_desc = get_var_desc(right_val, None, None)
 
-    left_node = RawNode(step=step, ins_type=ins_type, raw="", value=left_val)
-    right_node = RawNode(step=step, ins_type=ins_type, raw="", value=right_val)
-    node = FunctionNode(
-        step=step, ins_type=ins_type, name=name, args=[left_node, right_node], english=english
-    )
-    return [node]
+    left_node  = RawNode(step=step, ins_type=ins_type, raw=left_val,  value=left_desc)
+    right_node = RawNode(step=step, ins_type=ins_type, raw=right_val, value=right_desc)
+
+    # 3) Emit only the structural AST
+    return [
+        FunctionNode(
+            step=step,
+            ins_type=ins_type,
+            name="DateDifference",        # or ins_type.name
+            args=[left_node, right_node],
+        )
+    ]
 
 
 # ──────────────────────────────────────────────────────────────────────────────
 def parse_date_addition(
-    tokens: list[Token], step: int, ins_type: InsType
+    tokens: list[Token], step: int, ins_type: InsType,
+    algorithm_or_dependency: Algorithm | DependencyBase | None = None,
+    program_version: ProgramVersion | None = None,
 ) -> list[ASTNode]:
     """Parse Date Addition instructions: [base_date_or_var, offset_spec].
     Builds a FunctionNode named "Date Addition" with English = "Add offset to date".
@@ -250,22 +269,23 @@ def parse_date_addition(
     date_node = RawNode(step=step, ins_type=ins_type, raw=date_val, value=date_val)
     offset_node = RawNode(step=step, ins_type=ins_type, raw=offset_val, value=offset_val)
 
-    name = "Date Addition"
-    english = f"Add {offset_val} to {date_val}"
 
-    node = FunctionNode(
-        step=step,
-        ins_type=ins_type,
-        name=name,
-        args=[date_node, offset_node],
-        english=english,
-    )
-    return [node]
+    return [
+        FunctionNode(
+            step=step,
+            ins_type=ins_type,
+            name="DateAddition",
+            args=[date_node, offset_node],
+            # english omitted
+        )
+    ]
 
 
 # ──────────────────────────────────────────────────────────────────────────────
 def parse_if_date(
-    tokens: list[Token], raw_ins: dict, algorithm_or_dependency=None, program_version=None
+    tokens: list[Token], raw_ins: dict,
+    algorithm_or_dependency: Algorithm | DependencyBase | None = None,
+    program_version: ProgramVersion | None = None,
 ) -> list[ASTNode]:
     """Parse IF_DATE instructions (InsType.IF_DATE).
     Builds a CompareNode inside an IfNode, then wires true/false branches via seq_t/seq_f
@@ -299,14 +319,9 @@ def parse_if_date(
     # Next‐step pointers
     seq_t = raw_ins.get("seq_t")
     seq_f = raw_ins.get("seq_f")
-    try:
-        next_true = int(seq_t)
-    except:
-        next_true = None
-    try:
-        next_false = int(seq_f)
-    except:
-        next_false = None
+
+    next_true = int(seq_t) if seq_t is not None else None
+    next_false = int(seq_f) if seq_f is not None else None
 
     node = IfNode(
         step=step, ins_type=ins_type, condition=condition, true_branch=[], false_branch=[]
@@ -334,8 +349,8 @@ def parse_if_date(
 def parse_if(
     tokens: list["Token"],
     raw_ins: dict,
-    algorithm_or_dependency=None,
-    program_version=None,
+    algorithm_or_dependency: Algorithm | DependencyBase | None = None,
+    program_version: ProgramVersion | None = None,
 ) -> list["ASTNode"]:
     """Parse a single‐clause IF of the form "|VAR|OP|VALUE|" (e.g. "|GR_5370|=|{}|").
     We assume callers (decode_mif or parse) never strip the pipes before we run this.
@@ -359,32 +374,27 @@ def parse_if(
         right_val = ""
 
     desc_left = get_var_desc(left_val, algorithm_or_dependency, program_version)
-    left_node = RawNode(step=step, ins_type=ins_type.value, raw=left_val, value=desc_left)
+    left_node = RawNode(step=step, ins_type=ins_type, raw=left_val, value=desc_left)
     desc_right = get_var_desc(right_val, algorithm_or_dependency, program_version)
-    right_node = RawNode(step=step, ins_type=ins_type.value, raw=right_val, value=desc_right)
+    right_node = RawNode(step=step, ins_type=ins_type, raw=right_val, value=desc_right)
 
     condition = CompareNode(
         step=step,
-        ins_type=ins_type.value,
+        ins_type=ins_type,
         left=left_node,
         operator=operator,
         right=right_node,
         english=""
     )
 
-    node = IfNode(step=step, ins_type=ins_type.value, condition=condition, true_branch=[], false_branch=[])
+    node = IfNode(step=step, ins_type=ins_type, condition=condition, true_branch=[], false_branch=[])
 
     # 2) Wire up true/false branches via seq_t / seq_f if available
     seq_t = raw_ins.get("seq_t")
     seq_f = raw_ins.get("seq_f")
-    try:
-        next_true = int(seq_t)
-    except (TypeError, ValueError):
-        next_true = None
-    try:
-        next_false = int(seq_f)
-    except (TypeError, ValueError):
-        next_false = None
+
+    next_true = int(seq_t) if seq_t is not None else None
+    next_false = int(seq_f) if seq_f is not None else None
 
     if algorithm_or_dependency is not None and hasattr(algorithm_or_dependency, "steps"):
         raw_steps = algorithm_or_dependency.steps or []
@@ -398,7 +408,7 @@ def parse_if(
                     node.true_branch = decode_ins(raw_true, algorithm_or_dependency, program_version)
                 except Exception as e:
                     # On error, insert a RawNode with the exception text into true_branch
-                    node.true_branch = [RawNode(step=step, ins_type=ins_type.value, raw="", value=f"ERROR: {e}")]
+                    node.true_branch = [RawNode(step=step, ins_type=ins_type, raw="", value=f"ERROR: {e}")]
 
         # False branch
         if next_false is not None:
@@ -407,13 +417,15 @@ def parse_if(
                 try:
                     node.false_branch = decode_ins(raw_false, algorithm_or_dependency, program_version)
                 except Exception as e:
-                    node.false_branch = [RawNode(step=step, ins_type=ins_type.value, raw="", value=f"ERROR: {e}")]
+                    node.false_branch = [RawNode(step=step, ins_type=ins_type, raw="", value=f"ERROR: {e}")]
 
     return [node]
 
 
 # ──────────────────────────────────────────────────────────────────────────────
-def parse_arithmetic(tokens: list[Token], step: int, ins_type: InsType) -> list[ASTNode]:
+def parse_arithmetic(tokens: list[Token], step: int, ins_type: InsType,
+    algorithm_or_dependency: Algorithm | DependencyBase | None = None,
+    program_version: ProgramVersion | None = None,) -> list[ASTNode]:
     """Parse arithmetic expressions into an ArithmeticNode.
     Expected format: VAR operator VAR [round_spec], where round_spec might be '!RN', etc.
     """
@@ -453,7 +465,9 @@ def parse_arithmetic(tokens: list[Token], step: int, ins_type: InsType) -> list[
 
 
 # ──────────────────────────────────────────────────────────────────────────────
-def parse_function(tokens: list[Token], step: int, ins_type: InsType) -> list[ASTNode]:
+def parse_function(tokens: list[Token], step: int, ins_type: InsType,
+    algorithm_or_dependency: Algorithm | DependencyBase | None = None,
+    program_version: ProgramVersion | None = None,) -> list[ASTNode]:
     """Generic parser for math & trigonometry functions.
     Handles single‐arg (SQRT, LOG, etc.) and two‐arg (POWER, etc.) + optional rounding.
     """
@@ -497,7 +511,9 @@ def parse_function(tokens: list[Token], step: int, ins_type: InsType) -> list[AS
 
 # ──────────────────────────────────────────────────────────────────────────────
 def parse_call(
-    tokens: list[Token], raw_ins: dict, algorithm_or_dependency=None, program_version=None
+    tokens: list[Token], raw_ins: dict,
+    algorithm_or_dependency: Algorithm | DependencyBase | None = None,
+    program_version: ProgramVersion | None = None,
 ) -> list[ASTNode]:
     """Stub for CALL instruction.
     This can be updated later to construct an actual FunctionNode or similar.
@@ -511,7 +527,9 @@ def parse_call(
 
 # ──────────────────────────────────────────────────────────────────────────────
 def parse_data_source(
-    tokens: list[Token], raw_ins: dict, algorithm_or_dependency=None, program_version=None
+    tokens: list[Token], raw_ins: dict,
+    algorithm_or_dependency: Algorithm | DependencyBase | None = None,
+    program_version: ProgramVersion | None = None,
 ) -> list[ASTNode]:
     """Parse DataSource instructions (InsType.DATA_SOURCE).
     If program_version is None, we skip lookups and return a placeholder.

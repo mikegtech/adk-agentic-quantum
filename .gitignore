@@ -12,6 +12,7 @@ __pycache__/
 # Folders
 /src/data/*
 /docs/img/*
+/data/*
 
 # Distribution / packaging
 .Python

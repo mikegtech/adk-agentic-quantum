@@ -8,8 +8,8 @@ from enterprise_rating.entities.program_version import ProgramVersion
 
 def get_var_desc(
     target_var: str,
-    deps: Algorithm | DependencyBase,
-    program_version: ProgramVersion,
+    deps: Algorithm | DependencyBase | None = None,
+    program_version: ProgramVersion | None = None,
 ) -> str:
     """Return a human‐readable description for 'target_var', using these rules:
     1) If target_var is one of the simple operator tokens ("=", ">", "<", "<=", ">=", "!=", "<>", "@", "^"),
@@ -62,7 +62,7 @@ def get_var_desc(
 
     # === 4) If prefix == "GI", look in global_input_vars ===
     # 5j) LX / IX → System Variables (table: SystemVar)
-    if prefix in {"GI", "LX", "IX"}:
+    if prefix in {"GI", "LX", "IX"} and program_version is not None:
         # program_version.global_input_vars is assumed to be a list of InputVariable Pydantic models
         # each has fields: id (int), line_id, schema_id, var_desc, data_type, assign_type, etc.
 
@@ -76,26 +76,27 @@ def get_var_desc(
     if prefix == "LS":
         return f"Results of Step {var_id}"
 
-    # 5b) PL → Program Lookup Vars (table: LookupVarExt filtered by prog_id and line_id)
-    if prefix in {"PL", "GL", "PQ", "GQ"}:
-        for dep in deps:  # Pydantic list of LookupVarExt
-            if isinstance(dep, DependencyBase) and dep.is_table_variable() and dep.index == var_id:
-                return getattr(dep, "description", target_var) or target_var
-        return target_var
+    if deps is not None:
+        # 5b) PL → Program Lookup Vars (table: LookupVarExt filtered by prog_id and line_id)
+        if prefix in {"PL", "GL", "PQ", "GQ"}:
+            for dep in deps:  # Pydantic list of LookupVarExt
+                if isinstance(dep, DependencyBase) and dep.is_table_variable() and dep.index == var_id:
+                    return getattr(dep, "description", target_var) or target_var
+            return target_var
 
-    # 5d) GR / PR → Global Result Vars
-    if prefix in {"GR", "PR"}:
-        for dep in deps:  # Pydantic list of LookupVarExt
-            if isinstance(dep, DependencyBase) and dep.is_result_variable() and dep.index == var_id:
-                return getattr(dep, "description", target_var) or target_var
-        return target_var
+        # 5d) GR / PR → Global Result Vars
+        if prefix in {"GR", "PR"}:
+            for dep in deps:  # Pydantic list of LookupVarExt
+                if isinstance(dep, DependencyBase) and dep.is_result_variable() and dep.index == var_id:
+                    return getattr(dep, "description", target_var) or target_var
+            return target_var
 
-    # 5e) PC → Program Calculated Vars (join to instructions-groups for description)
-    if prefix in {"PC", "GC", "PP", "GP"}:
-        for dep in deps:  # Pydantic list of LookupVarExt
-            if isinstance(dep, DependencyBase) and dep.is_calculated_variable() and dep.calc_index == var_id:
-                return getattr(dep, "description", target_var) or target_var
-        return target_var
+        # 5e) PC → Program Calculated Vars (join to instructions-groups for description)
+        if prefix in {"PC", "GC", "PP", "GP"}:
+            for dep in deps:  # Pydantic list of LookupVarExt
+                if isinstance(dep, DependencyBase) and dep.is_calculated_variable() and dep.calc_index == var_id:
+                    return getattr(dep, "description", target_var) or target_var
+            return target_var
 
     # 5m) If we fall through to here, prefix is unknown or not handled.
     return target_var

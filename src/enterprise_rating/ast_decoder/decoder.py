@@ -1,13 +1,22 @@
 # enterprise_rating/ast_decoder/decoder.py
 
+from enterprise_rating.entities.algorithm import Algorithm
+from enterprise_rating.entities.dependency import DependencyBase
+from enterprise_rating.entities.program_version import ProgramVersion
+
 from .parser import parse
 from .tokenizer import tokenize
 
 
-def decode_ins(raw_ins: dict, algorithm_or_dependency=None, program_version=None) -> list:
+def decode_ins(
+    raw_ins: dict,
+    algorithm_or_dependency: Algorithm | DependencyBase | None = None,
+    program_version: ProgramVersion | None = None,
+    include_english: bool = False
+) -> list:
     """Entrypoint: decode one instruction dict into a list of AST nodes.
     If algorithm_or_dependency or program_version is None, parsing will
-    produce a best‐effort AST without doing any jumps or lookups.
+    produce a best-effort AST without doing any jumps or lookups.
 
     Args:
       raw_ins        dict of instruction fields (keys: 'n','t','ins','ins_tar','seq_t','seq_f')
@@ -18,6 +27,11 @@ def decode_ins(raw_ins: dict, algorithm_or_dependency=None, program_version=None
       List[ASTNode]
 
     """
+    existing = raw_ins.get("ast")
+    if existing is not None:
+        # If the AST is already present, return it directly
+        return existing
+
     ins_str = raw_ins.get("ins", "") or ""
     tokens = tokenize(ins_str)
     return parse(tokens, raw_ins, algorithm_or_dependency, program_version)
