@@ -7,7 +7,8 @@ from enterprise_rating.entities.algorithm import Algorithm
 from enterprise_rating.entities.dependency import DependencyBase
 from enterprise_rating.entities.program_version import ProgramVersion
 
-from .ast_nodes import ArithmeticNode, AssignmentNode, ASTNode, CompareNode, FunctionNode, IfNode, RawNode
+from .ast_nodes import (ArithmeticNode, AssignmentNode, ASTNode, CompareNode,
+                        FunctionNode, IfNode, JumpNode, RawNode)
 from .decode_mif import decode_mif
 from .defs import InsType
 from .helpers.ins_helpers import get_operator_english, get_round_english
@@ -43,48 +44,38 @@ def parse(
     step = int(raw_ins.get("n", 0))
     ins_str = raw_ins.get("ins", "") or ""
 
-    # 1) If there's a '#' anywhere, jump to decode_mif
-    if MULTI_IF_SYMBOL in ins_str or '^' in ins_str or '+' in ins_str:
-        return decode_mif(raw_ins, algorithm_or_dependency, program_version)
-
-
-
-    # 2) Otherwise, if this is a plain IF, call parse_if
-    if ins_type == InsType.IF:
-        return parse_if(tokens, raw_ins, algorithm_or_dependency, program_version)
-
     # 3) InsType dispatch map
     # noqa: E241
     dispatch_map: dict[InsType, tuple[Callable, str]] = {
-        InsType.ARITHMETIC:   (parse_arithmetic,      "ASSIGNMENT"),  # noqa: E241
-        InsType.IF:           (parse_if,              "IF_COMPARE"),  # noqa: E241
-        InsType.IF_DATE:      (parse_if_date,         "IF_COMPARE"),  # noqa: E241
-        InsType.CALL:         (parse_call,            "FUNCTION_CALL"),  # noqa: E241
-        InsType.SORT:         (parse_sort,            "FUNCTION_CALL"),  # noqa: E241
-        InsType.MASK:         (parse_mask,            "MASK"),  # noqa: E241
-        InsType.SET_STRING:   (parse_set_string,      "ASSIGNMENT"),  # noqa: E241
-        InsType.EMPTY:        (parse_empty,           "EMPTY"),  # noqa: E241
+        InsType.ARITHMETIC: (parse_arithmetic, "ASSIGNMENT"),  # noqa: E241
+        InsType.IF: (parse_if, "IF_COMPARE"),  # noqa: E241
+        InsType.IF_DATE: (parse_if_date, "IF_COMPARE"),  # noqa: E241
+        InsType.CALL: (parse_call, "FUNCTION_CALL"),  # noqa: E241
+        InsType.SORT: (parse_sort, "FUNCTION_CALL"),  # noqa: E241
+        InsType.MASK: (parse_mask, "MASK"),  # noqa: E241
+        InsType.SET_STRING: (parse_set_string, "ASSIGNMENT"),  # noqa: E241
+        InsType.EMPTY: (parse_empty, "EMPTY"),  # noqa: E241
         InsType.STRING_ADDITION: (parse_string_addition, "STRING_CONCAT"),  # noqa: E241
-        InsType.DATE_DIFF_DAYS:   (parse_date_diff,       "DATE_DIFF"),  # noqa: E241
-        InsType.DATE_DIFF_MONTHS: (parse_date_diff,       "DATE_DIFF"),  # noqa: E241
-        InsType.DATE_DIFF_YEARS:  (parse_date_diff,       "DATE_DIFF"),  # noqa: E241
-        InsType.DATE_ADDITION:    (parse_date_addition,   "DATE_DIFF"),  # noqa: E241
+        InsType.DATE_DIFF_DAYS: (parse_date_diff, "DATE_DIFF"),  # noqa: E241
+        InsType.DATE_DIFF_MONTHS: (parse_date_diff, "DATE_DIFF"),  # noqa: E241
+        InsType.DATE_DIFF_YEARS: (parse_date_diff, "DATE_DIFF"),  # noqa: E241
+        InsType.DATE_ADDITION: (parse_date_addition, "DATE_DIFF"),  # noqa: E241
         # Math & Trig functions all use the same template
-        InsType.POWER:       (parse_function,        "FUNCTION_CALL"),  # noqa: E241
-        InsType.LOG:         (parse_function,        "FUNCTION_CALL"),  # noqa: E241
-        InsType.LOG10:       (parse_function,        "FUNCTION_CALL"),  # noqa: E241
-        InsType.EXP:         (parse_function,        "FUNCTION_CALL"),  # noqa: E241
-        InsType.SQRT:        (parse_function,        "FUNCTION_CALL"),  # noqa: E241
-        InsType.COS:         (parse_function,        "FUNCTION_CALL"),  # noqa: E241
-        InsType.SIN:         (parse_function,        "FUNCTION_CALL"),  # noqa: E241
-        InsType.TAN:         (parse_function,        "FUNCTION_CALL"),  # noqa: E241
-        InsType.COSH:        (parse_function,        "FUNCTION_CALL"),  # noqa: E241
-        InsType.SINH:        (parse_function,        "FUNCTION_CALL"),  # noqa: E241
-        InsType.TANH:        (parse_function,        "FUNCTION_CALL"),  # noqa: E241
+        InsType.POWER: (parse_function, "FUNCTION_CALL"),  # noqa: E241
+        InsType.LOG: (parse_function, "FUNCTION_CALL"),  # noqa: E241
+        InsType.LOG10: (parse_function, "FUNCTION_CALL"),  # noqa: E241
+        InsType.EXP: (parse_function, "FUNCTION_CALL"),  # noqa: E241
+        InsType.SQRT: (parse_function, "FUNCTION_CALL"),  # noqa: E241
+        InsType.COS: (parse_function, "FUNCTION_CALL"),  # noqa: E241
+        InsType.SIN: (parse_function, "FUNCTION_CALL"),  # noqa: E241
+        InsType.TAN: (parse_function, "FUNCTION_CALL"),  # noqa: E241
+        InsType.COSH: (parse_function, "FUNCTION_CALL"),  # noqa: E241
+        InsType.SINH: (parse_function, "FUNCTION_CALL"),  # noqa: E241
+        InsType.TANH: (parse_function, "FUNCTION_CALL"),  # noqa: E241
         # DataSource
-        InsType.DATA_SOURCE: (parse_data_source,     "QUERY_DATA_SOURCE"),  # noqa: E241
+        InsType.DATA_SOURCE: (parse_data_source, "QUERY_DATA_SOURCE"),  # noqa: E241
         # Special cases for RANK and FLAG
-        InsType.RANK_ACROSS_CATEGORY:  (parse_rank_flag,       "RANK_FLAG"),  # noqa: E241
+        InsType.RANK_ACROSS_CATEGORY: (parse_rank_flag, "RANK_FLAG"),  # noqa: E241
         InsType.RANK_ACROSS_CATEGORY_ALL_AVAILABLE_ALT: (parse_rank_flag, "RANK_ACROSS_CATEGORY_ALL_AVAILABLE_ALT"),  # noqa: E241
         InsType.RANK_ACROSS_CATEGORY_ALT: (parse_rank_flag, "RANK_ACROSS_CATEGORY_ALT"),  # noqa: E241
         InsType.SET_UNDERWRITING_TO_FAIL: (parse_empty, "SET_UNDERWRITING_TO_FAIL"),  # noqa: E241
@@ -93,6 +84,15 @@ def parse(
     parser_func_tuple = dispatch_map.get(ins_type) if ins_type is not None else None
     if parser_func_tuple is not None:
         parser_func, template_id = parser_func_tuple
+
+        # 1) If there's a '#' anywhere, jump to decode_mif
+        if MULTI_IF_SYMBOL in ins_str or "^" in ins_str or "+" in ins_str:
+            return decode_mif(raw_ins, algorithm_or_dependency, program_version, template_id)
+
+        # 2) Otherwise, if this is a plain IF, call parse_if
+        if ins_type == InsType.IF:
+            return parse_if(tokens, raw_ins, algorithm_or_dependency, program_version, template_id)
+
         # Some parsers need raw_ins + algorithm_or_dependency + program_version
         if parser_func in (parse_if, parse_if_date, parse_data_source):
             return parser_func(tokens, raw_ins, algorithm_or_dependency, program_version, template_id)  # type: ignore
@@ -126,9 +126,7 @@ def parse_rank_flag(
             and t.type == "WORD"
             and ("GI_" in t.value or "GC_" in t.value)
         ):
-            vars_expanded.append(
-                get_var_desc(t.value, algorithm_or_dependency, program_version)
-            )
+            vars_expanded.append(get_var_desc(t.value, algorithm_or_dependency, program_version))
         else:
             vars_expanded.append(t.value)
 
@@ -140,20 +138,28 @@ def parse_rank_flag(
 
 
 # ──────────────────────────────────────────────────────────────────────────────
-def parse_sort(tokens: list[Token], step: int, ins_type: InsType,
+def parse_sort(
+    tokens: list[Token],
+    step: int,
+    ins_type: InsType,
     algorithm_or_dependency: Algorithm | DependencyBase | None = None,
     program_version: ProgramVersion | None = None,
-    template_id: str = "",) -> list[ASTNode]:
+    template_id: str = "",
+) -> list[ASTNode]:
     """Stub for Sort instruction."""
     text = "Sort: " + " ".join(t.value for t in tokens)
     return [RawNode(step=step, ins_type=ins_type, template_id=template_id, raw="", value=text)]
 
 
 # ──────────────────────────────────────────────────────────────────────────────
-def parse_mask(tokens: list[Token], step: int, ins_type: InsType,
+def parse_mask(
+    tokens: list[Token],
+    step: int,
+    ins_type: InsType,
     algorithm_or_dependency: Algorithm | DependencyBase | None = None,
     program_version: ProgramVersion | None = None,
-    template_id: str = "",) -> list[ASTNode]:
+    template_id: str = "",
+) -> list[ASTNode]:
     """Stub for Mask instruction."""
     text = "Mask: " + " ".join(t.value for t in tokens)
 
@@ -161,17 +167,23 @@ def parse_mask(tokens: list[Token], step: int, ins_type: InsType,
 
 
 # ──────────────────────────────────────────────────────────────────────────────
-def parse_empty(tokens: list[Token], step: int, ins_type: InsType,
+def parse_empty(
+    tokens: list[Token],
+    step: int,
+    ins_type: InsType,
     algorithm_or_dependency: Algorithm | DependencyBase | None = None,
     program_version: ProgramVersion | None = None,
-    template_id: str = "",) -> list[ASTNode]:
+    template_id: str = "",
+) -> list[ASTNode]:
     """Empty instruction (no‐op)."""
     return []
 
 
 # ──────────────────────────────────────────────────────────────────────────────
 def parse_set_string(
-    tokens: list[Token], step: int, ins_type: InsType,
+    tokens: list[Token],
+    step: int,
+    ins_type: InsType,
     algorithm_or_dependency: Algorithm | DependencyBase | None = None,
     program_version: ProgramVersion | None = None,
     template_id: str = "",
@@ -195,7 +207,9 @@ def parse_set_string(
         return [assign]
 
     # Fallback
-    return [RawNode(step=step, ins_type=ins_type, template_id=template_id, raw="", value=" ".join(t.value for t in tokens))]
+    return [
+        RawNode(step=step, ins_type=ins_type, template_id=template_id, raw="", value=" ".join(t.value for t in tokens))
+    ]
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -211,18 +225,16 @@ def parse_string_addition(
     human-friendly descriptions for each piece and for the overall summary.
     """
     # 1) pull step and ins_type out of the raw_ins dict
-    step     = int(raw_ins.get("n", 0))
+    step = int(raw_ins.get("n", 0))
     ins_type = InsType(int(raw_ins.get("t", 0)))
 
     # 2) build a RawNode for each token, stripping brackets only for lookup
     args: list[RawNode] = []
     for t in tokens:
         original = t.value
-        clean    = original.replace("[", "").replace("]", "")
-        desc     = get_var_desc(clean, algorithm_or_dependency, program_version)
-        args.append(
-            RawNode(step=step, ins_type=ins_type, template_id=template_id, raw=original, value=desc)
-        )
+        clean = original.replace("[", "").replace("]", "")
+        desc = get_var_desc(clean, algorithm_or_dependency, program_version)
+        args.append(RawNode(step=step, ins_type=ins_type, template_id=template_id, raw=original, value=desc))
 
     return [
         FunctionNode(
@@ -235,9 +247,12 @@ def parse_string_addition(
         )
     ]
 
+
 # ──────────────────────────────────────────────────────────────────────────────
 def parse_date_diff(
-    tokens: list[Token], step: int, ins_type: InsType,
+    tokens: list[Token],
+    step: int,
+    ins_type: InsType,
     algorithm_or_dependency: Algorithm | DependencyBase | None = None,
     program_version: ProgramVersion | None = None,
     template_id: str = "",
@@ -251,10 +266,10 @@ def parse_date_diff(
         right_val = ""
 
     # 2) look up their “nice” descriptions, but do *not* build any English sentence here
-    left_desc  = get_var_desc(left_val, None, None)
+    left_desc = get_var_desc(left_val, None, None)
     right_desc = get_var_desc(right_val, None, None)
 
-    left_node  = RawNode(step=step, ins_type=ins_type, template_id=template_id, raw=left_val,  value=left_desc)
+    left_node = RawNode(step=step, ins_type=ins_type, template_id=template_id, raw=left_val, value=left_desc)
     right_node = RawNode(step=step, ins_type=ins_type, template_id=template_id, raw=right_val, value=right_desc)
 
     # 3) Emit only the structural AST
@@ -262,7 +277,7 @@ def parse_date_diff(
         FunctionNode(
             step=step,
             ins_type=ins_type,
-            name="DateDifference",        # or ins_type.name
+            name="DateDifference",  # or ins_type.name
             args=[left_node, right_node],
         )
     ]
@@ -270,7 +285,9 @@ def parse_date_diff(
 
 # ──────────────────────────────────────────────────────────────────────────────
 def parse_date_addition(
-    tokens: list[Token], step: int, ins_type: InsType,
+    tokens: list[Token],
+    step: int,
+    ins_type: InsType,
     algorithm_or_dependency: Algorithm | DependencyBase | None = None,
     program_version: ProgramVersion | None = None,
     template_id: str = "",
@@ -288,7 +305,6 @@ def parse_date_addition(
     date_node = RawNode(step=step, ins_type=ins_type, template_id=template_id, raw=date_val, value=date_val)
     offset_node = RawNode(step=step, ins_type=ins_type, template_id=template_id, raw=offset_val, value=offset_val)
 
-
     return [
         FunctionNode(
             step=step,
@@ -302,7 +318,8 @@ def parse_date_addition(
 
 # ──────────────────────────────────────────────────────────────────────────────
 def parse_if_date(
-    tokens: list[Token], raw_ins: dict,
+    tokens: list[Token],
+    raw_ins: dict,
     algorithm_or_dependency: Algorithm | DependencyBase | None = None,
     program_version: ProgramVersion | None = None,
     template_id: str = "",
@@ -400,15 +417,12 @@ def parse_if(
     right_node = RawNode(step=step, ins_type=ins_type, template_id=template_id, raw=right_val, value=desc_right)
 
     condition = CompareNode(
-        step=step,
-        ins_type=ins_type,
-        left=left_node,
-        operator=operator,
-        right=right_node,
-        english=""
+        step=step, ins_type=ins_type, left=left_node, operator=operator, right=right_node, english=""
     )
 
-    node = IfNode(step=step, ins_type=ins_type, template_id=template_id, condition=condition, true_branch=[], false_branch=[])
+    node = IfNode(
+        step=step, ins_type=ins_type, template_id=template_id, condition=condition, true_branch=[], false_branch=[]
+    )
 
     # 2) Wire up true/false branches via seq_t / seq_f if available
     seq_t = raw_ins.get("seq_t")
@@ -423,13 +437,9 @@ def parse_if(
 
         # True branch
         if next_true is not None:
-            raw_true = next((i for i in steps_list if int(i.get("n", 0)) == next_true), None)
-            if raw_true:
-                try:
-                    node.true_branch = decode_ins(raw_true, algorithm_or_dependency, program_version)
-                except Exception as e:
-                    # On error, insert a RawNode with the exception text into true_branch
-                    node.true_branch = [RawNode(step=step, ins_type=ins_type, template_id=template_id, raw="", value=f"ERROR: {e}")]
+            node.true_branch = [
+                JumpNode(step=step, ins_type=ins_type, template_id="JUMP", target=next_true, english=f"Jump to step {next_true}")
+            ]
 
         # False branch
         if next_false is not None:
@@ -438,16 +448,22 @@ def parse_if(
                 try:
                     node.false_branch = decode_ins(raw_false, algorithm_or_dependency, program_version)
                 except Exception as e:
-                    node.false_branch = [RawNode(step=step, ins_type=ins_type, template_id=template_id, raw="", value=f"ERROR: {e}")]
+                    node.false_branch = [
+                        RawNode(step=step, ins_type=ins_type, template_id=template_id, raw="", value=f"ERROR: {e}")
+                    ]
 
     return [node]
 
 
 # ──────────────────────────────────────────────────────────────────────────────
-def parse_arithmetic(tokens: list[Token], step: int, ins_type: InsType,
+def parse_arithmetic(
+    tokens: list[Token],
+    step: int,
+    ins_type: InsType,
     algorithm_or_dependency: Algorithm | DependencyBase | None = None,
     program_version: ProgramVersion | None = None,
-    template_id: str = "",) -> list[ASTNode]:
+    template_id: str = "",
+) -> list[ASTNode]:
     """Parse arithmetic expressions into an ArithmeticNode.
     Expected format: VAR operator VAR [round_spec], where round_spec might be '!RN', etc.
     """
@@ -484,14 +500,20 @@ def parse_arithmetic(tokens: list[Token], step: int, ins_type: InsType,
         return [node]
 
     # Fallback
-    return [RawNode(step=step, ins_type=ins_type, template_id=template_id, raw="", value=" ".join(t.value for t in tokens))]
+    return [
+        RawNode(step=step, ins_type=ins_type, template_id=template_id, raw="", value=" ".join(t.value for t in tokens))
+    ]
 
 
 # ──────────────────────────────────────────────────────────────────────────────
-def parse_function(tokens: list[Token], step: int, ins_type: InsType,
+def parse_function(
+    tokens: list[Token],
+    step: int,
+    ins_type: InsType,
     algorithm_or_dependency: Algorithm | DependencyBase | None = None,
     program_version: ProgramVersion | None = None,
-    template_id: str = "",) -> list[ASTNode]:
+    template_id: str = "",
+) -> list[ASTNode]:
     """Generic parser for math & trigonometry functions.
     Handles single‐arg (SQRT, LOG, etc.) and two‐arg (POWER, etc.) + optional rounding.
     """
@@ -529,13 +551,16 @@ def parse_function(tokens: list[Token], step: int, ins_type: InsType,
         round_eng = get_round_english(round_spec)
         english += f" then {round_eng}"
 
-    node = FunctionNode(step=step, ins_type=ins_type, template_id=template_id, name=ins_type.name, args=args, english=english)
+    node = FunctionNode(
+        step=step, ins_type=ins_type, template_id=template_id, name=ins_type.name, args=args, english=english
+    )
     return [node]
 
 
 # ──────────────────────────────────────────────────────────────────────────────
 def parse_call(
-    tokens: list[Token], raw_ins: dict,
+    tokens: list[Token],
+    raw_ins: dict,
     algorithm_or_dependency: Algorithm | DependencyBase | None = None,
     program_version: ProgramVersion | None = None,
     template_id: str = "",
@@ -552,7 +577,8 @@ def parse_call(
 
 # ──────────────────────────────────────────────────────────────────────────────
 def parse_data_source(
-    tokens: list[Token], raw_ins: dict,
+    tokens: list[Token],
+    raw_ins: dict,
     algorithm_or_dependency: Algorithm | DependencyBase | None = None,
     program_version: ProgramVersion | None = None,
     template_id: str = "",
@@ -568,7 +594,10 @@ def parse_data_source(
         step=step,
         ins_type=ins_type,
         name="DataSource",
-        args=[RawNode(step=step, ins_type=ins_type, template_id=template_id, raw=tok.value, value=tok.value) for tok in tokens],
+        args=[
+            RawNode(step=step, ins_type=ins_type, template_id=template_id, raw=tok.value, value=tok.value)
+            for tok in tokens
+        ],
         english="DataSource call not implemented",
     )
     return [node]

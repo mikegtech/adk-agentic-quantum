@@ -57,6 +57,8 @@ templates:
     *{left}* **=** *{right}*
   STRING_CONCAT: |
     Concatenate {args}
+  JUMP: |
+    **Then** go to step *{target}*
   DATE_DIFF: |
     Calculate *{target}* as difference in days between *{left}* and *{right}*
   # …and so on for all node patterns…

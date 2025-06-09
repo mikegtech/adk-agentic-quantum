@@ -1,12 +1,21 @@
 # enterprise_rating/ast_decoder/decode_mif.py
 
+from enterprise_rating.entities.algorithm import Algorithm
+from enterprise_rating.entities.dependency import DependencyBase
+from enterprise_rating.entities.program_version import ProgramVersion
+
 from .ast_nodes import ASTNode, RawNode
 from .defs import MULTI_IF_SYMBOL
 
 
-def decode_mif(raw_ins: dict, algorithm_or_dependency=None, program_version=None) -> list[ASTNode]:
-    """Decode any instruction whose 'ins' string contains '#' (multi‐IF marker),
-    or '^' (OR), or '+' (AND).  Each sub‐clause is still in the form "|VAR|OP|VALUE|",
+def decode_mif(
+    raw_ins: dict,
+    algorithm_or_dependency: Algorithm | DependencyBase | None = None,
+    program_version: ProgramVersion | None = None,
+    template_id: str = ""
+) -> list[ASTNode]:
+    """Decode any instruction whose 'ins' string contains '#' (multi-IF marker),
+    or '^' (OR), or '+' (AND).  Each sub-clause is still in the form "|VAR|OP|VALUE|",
     so we do NOT strip away the '|'—instead, parse_if will split on pipes.
 
     If decode_ins(...) raises, return a single RawNode containing the exception text.
@@ -20,7 +29,7 @@ def decode_mif(raw_ins: dict, algorithm_or_dependency=None, program_version=None
     if MULTI_IF_SYMBOL in ins_str:
         idx_hash = ins_str.index(MULTI_IF_SYMBOL)
         base_part = ins_str[:idx_hash]
-        multi_body = ins_str[idx_hash + 1 :]
+        multi_body = ins_str[idx_hash + 1:]
     else:
         base_part = ""
         multi_body = ins_str
@@ -40,7 +49,7 @@ def decode_mif(raw_ins: dict, algorithm_or_dependency=None, program_version=None
             except:
                 ins_type_val = None
             combined_nodes.append(
-                RawNode(step=step, ins_type=ins_type_val, raw="", value=f"ERROR: {e}")
+                RawNode(step=step, ins_type=ins_type_val, template_id=template_id, raw="", value=f"ERROR: {e}")
             )
 
     # 3) Now split multi_body on '^' or '+' (in the order they appear).  We do NOT remove the pipes.

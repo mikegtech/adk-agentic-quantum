@@ -79,3 +79,11 @@ class AssignmentNode(ASTNode):
     next_true:  list[ASTNode] | None = None
     next_false: list[ASTNode] | None = None
 
+@dataclass
+class JumpNode(ASTNode):
+    """Represents a jump to another step in the program.
+    - target_step: the step number to jump to
+    - target_ins_type: the INS_TYPE of the target instruction
+    """
+
+    target: int | None = None
