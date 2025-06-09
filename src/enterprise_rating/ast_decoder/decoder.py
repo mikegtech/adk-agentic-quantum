@@ -28,7 +28,7 @@ def decode_ins(
 
     """
     existing = raw_ins.get("ast")
-    if existing is not None:
+    if existing is not None and isinstance(existing, list) and len(existing) > 0:
         # If the AST is already present, return it directly
         return existing
 
