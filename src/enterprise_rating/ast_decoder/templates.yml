@@ -61,4 +61,23 @@ templates:
     **Then** go to step *{target}*
   DATE_DIFF: |
     Calculate *{target}* as difference in days between *{left}* and *{right}*
+  ARITHMETIC: |
+    *{left}* **{operator}** *{right}*{rounding}
+  FUNCTION_CALL: |
+    **{{ name }}**({{ args|join(", ") }}){% if round_spec %} • rounded to {{ round_spec }} places{% endif %}
+  MASK: |
+    Mask *{{ left }}* by *{{ right }}*
+  EMPTY: |
+    No operation
+  QUERY_DATA_SOURCE: |
+    Query data source *{{ target }}*
+  RANK_FLAG: |
+    Rank or flag *{{ target }}*
+  RANK_ACROSS_CATEGORY_ALL_AVAILABLE_ALT: |
+    Rank across category (all available) *{{ target }}*
+  RANK_ACROSS_CATEGORY_ALT: |
+    Rank across category *{{ target }}*
+  SET_UNDERWRITING_TO_FAIL: |
+    Set underwriting to fail
+
   # …and so on for all node patterns…

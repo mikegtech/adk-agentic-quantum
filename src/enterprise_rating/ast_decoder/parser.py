@@ -3,15 +3,14 @@
 from collections.abc import Callable
 
 from enterprise_rating.ast_decoder.defs import MULTI_IF_SYMBOL
+from enterprise_rating.ast_decoder.renderer import render_node
 from enterprise_rating.entities.algorithm import Algorithm
 from enterprise_rating.entities.dependency import DependencyBase
 from enterprise_rating.entities.program_version import ProgramVersion
 
-from .ast_nodes import (ArithmeticNode, AssignmentNode, ASTNode, CompareNode,
-                        FunctionNode, IfNode, JumpNode, RawNode)
+from .ast_nodes import ArithmeticNode, AssignmentNode, ASTNode, CompareNode, FunctionNode, IfNode, JumpNode, RawNode
 from .decode_mif import decode_mif
 from .defs import InsType
-from .helpers.ins_helpers import get_operator_english, get_round_english
 from .helpers.var_lookup import get_var_desc
 from .tokenizer import Token
 
@@ -175,7 +174,7 @@ def parse_empty(
     program_version: ProgramVersion | None = None,
     template_id: str = "",
 ) -> list[ASTNode]:
-    """Empty instruction (no‐op)."""
+    """Empty instruction (no-op)."""
     return []
 
 
@@ -204,6 +203,9 @@ def parse_set_string(
             next_true=None,
             next_false=None,
         )
+
+        assign.english = render_node(assign)
+
         return [assign]
 
     # Fallback
@@ -236,16 +238,17 @@ def parse_string_addition(
         desc = get_var_desc(clean, algorithm_or_dependency, program_version)
         args.append(RawNode(step=step, ins_type=ins_type, template_id=template_id, raw=original, value=desc))
 
-    return [
-        FunctionNode(
-            step=step,
-            ins_type=ins_type,
-            name="StringAddition",
-            template_id=template_id,
-            args=args,
-            # english omitted; renderer will handle
-        )
-    ]
+    func_node = FunctionNode(
+        step=step,
+        ins_type=ins_type,
+        name="StringAddition",
+        template_id=template_id,
+        args=args,
+    )
+
+    func_node.english = render_node(func_node)
+
+    return [func_node]
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -269,18 +272,19 @@ def parse_date_diff(
     left_desc = get_var_desc(left_val, None, None)
     right_desc = get_var_desc(right_val, None, None)
 
-    left_node = RawNode(step=step, ins_type=ins_type, template_id=template_id, raw=left_val, value=left_desc)
-    right_node = RawNode(step=step, ins_type=ins_type, template_id=template_id, raw=right_val, value=right_desc)
+    left_node = RawNode(step=step, ins_type=ins_type, raw=left_val, value=left_desc)
+    right_node = RawNode(step=step, ins_type=ins_type, raw=right_val, value=right_desc)
 
     # 3) Emit only the structural AST
-    return [
-        FunctionNode(
-            step=step,
-            ins_type=ins_type,
-            name="DateDifference",  # or ins_type.name
-            args=[left_node, right_node],
-        )
-    ]
+    func_node = FunctionNode(
+        step=step,
+        ins_type=ins_type,
+        name="DateDifference",  # or ins_type.name
+        template_id=template_id,
+        args=[left_node, right_node],
+    )
+    func_node.english = render_node(func_node)  # Render the English description
+    return [func_node]
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -305,15 +309,15 @@ def parse_date_addition(
     date_node = RawNode(step=step, ins_type=ins_type, template_id=template_id, raw=date_val, value=date_val)
     offset_node = RawNode(step=step, ins_type=ins_type, template_id=template_id, raw=offset_val, value=offset_val)
 
-    return [
-        FunctionNode(
-            step=step,
-            ins_type=ins_type,
-            name="DateAddition",
-            template_id=template_id,
-            args=[date_node, offset_node],
-        )
-    ]
+    func_node = FunctionNode(
+        step=step,
+        ins_type=ins_type,
+        name="DateAddition",
+        template_id=template_id,
+        args=[date_node, offset_node],
+    )
+    func_node.english = render_node(func_node)  # Render the English description
+    return [func_node]
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -328,8 +332,6 @@ def parse_if_date(
     Builds a CompareNode inside an IfNode, then wires true/false branches via seq_t/seq_f
     if algorithm_or_dependency is provided.
     """
-    from .decoder import decode_ins  # avoid circular import
-
     step = int(raw_ins.get("n", 0))
     ins_type = InsType(int(raw_ins.get("t", 0)))
 
@@ -342,16 +344,16 @@ def parse_if_date(
 
     right_desc = get_var_desc(left_val, algorithm_or_dependency, program_version)
     right_node = RawNode(step=step, ins_type=ins_type, template_id=template_id, raw=right_val, value=right_desc)
-    english_op = get_operator_english(op_val)
 
     condition = CompareNode(
         step=step,
         ins_type=ins_type,
         left=left_node,
+        template_id=template_id,
         operator=op_val,
         right=right_node,
-        english=f"Date {english_op}",
     )
+    condition.english = render_node(condition)  # Render the English description
 
     # Next‐step pointers
     seq_t = raw_ins.get("seq_t")
@@ -363,21 +365,25 @@ def parse_if_date(
     node = IfNode(
         step=step, ins_type=ins_type, template_id=template_id, condition=condition, true_branch=[], false_branch=[]
     )
+    node.english = render_node(node)  # Render the English description
 
-    # If algorithm_or_dependency has .steps, wire the branches
-    if algorithm_or_dependency is not None and hasattr(algorithm_or_dependency, "steps"):
-        raw_steps = algorithm_or_dependency.steps or []
-        steps_list = raw_steps if isinstance(raw_steps, list) else [raw_steps]
+    # True branch
+    if next_true is not None:
+        node.true_branch = [
+            JumpNode(step=step, ins_type=ins_type, template_id="JUMP", target=next_true)
+        ]
 
-        if next_true is not None:
-            raw_true = next((i for i in steps_list if int(i.get("n", 0)) == next_true), None)
-            if raw_true:
-                node.true_branch = decode_ins(raw_true, algorithm_or_dependency, program_version)
+        for branch_node in node.true_branch:
+            branch_node.english = render_node(branch_node)
 
-        if next_false is not None:
-            raw_false = next((i for i in steps_list if int(i.get("n", 0)) == next_false), None)
-            if raw_false:
-                node.false_branch = decode_ins(raw_false, algorithm_or_dependency, program_version)
+    # False branch
+    if next_false is not None:
+        node.false_branch = [
+            JumpNode(step=step, ins_type=ins_type, template_id="JUMP", target=next_false)
+        ]
+
+        for branch_node in node.false_branch:
+            branch_node.english = render_node(branch_node)
 
     return [node]
 
@@ -393,8 +399,6 @@ def parse_if(
     """Parse a single‐clause IF of the form "|VAR|OP|VALUE|" (e.g. "|GR_5370|=|{}|").
     We assume callers (decode_mif or parse) never strip the pipes before we run this.
     """
-    from .decoder import decode_ins  # avoid circular import
-
     step = int(raw_ins.get("n", 0))
     ins_type = InsType(int(raw_ins.get("t", 0)))
     ins_str = raw_ins.get("ins", "") or ""  # e.g. "|~GI_494|<>|GC_691|"
@@ -431,26 +435,23 @@ def parse_if(
     next_true = int(seq_t) if seq_t is not None else None
     next_false = int(seq_f) if seq_f is not None else None
 
-    if algorithm_or_dependency is not None and hasattr(algorithm_or_dependency, "steps"):
-        raw_steps = algorithm_or_dependency.steps or []
-        steps_list = raw_steps if isinstance(raw_steps, list) else [raw_steps]
+    # True branch
+    if next_true is not None:
+        node.true_branch = [
+            JumpNode(step=step, ins_type=ins_type, template_id="JUMP", target=next_true)
+        ]
 
-        # True branch
-        if next_true is not None:
-            node.true_branch = [
-                JumpNode(step=step, ins_type=ins_type, template_id="JUMP", target=next_true, english=f"Jump to step {next_true}")
-            ]
+        for branch_node in node.true_branch:
+            branch_node.english = render_node(branch_node)
 
-        # False branch
-        if next_false is not None:
-            raw_false = next((i for i in steps_list if int(i.get("n", 0)) == next_false), None)
-            if raw_false:
-                try:
-                    node.false_branch = decode_ins(raw_false, algorithm_or_dependency, program_version)
-                except Exception as e:
-                    node.false_branch = [
-                        RawNode(step=step, ins_type=ins_type, template_id=template_id, raw="", value=f"ERROR: {e}")
-                    ]
+    # False branch
+    if next_false is not None:
+        node.false_branch = [
+            JumpNode(step=step, ins_type=ins_type, template_id="JUMP", target=next_false)
+        ]
+
+        for branch_node in node.false_branch:
+            branch_node.english = render_node(branch_node)
 
     return [node]
 
@@ -480,12 +481,6 @@ def parse_arithmetic(
 
         left_node = RawNode(step=step, ins_type=ins_type, template_id=template_id, raw=left_val, value=left_val)
         right_node = RawNode(step=step, ins_type=ins_type, template_id=template_id, raw=right_val, value=right_val)
-        round_eng = get_round_english(round_spec) if round_spec else None
-
-        op_eng = get_operator_english(operator)
-        english = f"Compute {left_val} {op_eng} {right_val}"
-        if round_eng:
-            english += f" then {round_eng}"
 
         node = ArithmeticNode(
             step=step,
@@ -494,9 +489,10 @@ def parse_arithmetic(
             operator=operator,
             template_id=template_id,
             right=right_node,
-            round_spec=round_spec,
-            round_english=round_eng,
+            round_spec=round_spec
         )
+        node.english = render_node(node)
+
         return [node]
 
     # Fallback
@@ -540,20 +536,11 @@ def parse_function(
     }
     display_name = friendly_map.get(ins_type.name, ins_type.name.title())
 
-    if len(tokens) == 1:
-        english = f"Compute {display_name} of {tokens[0].value}"
-    elif len(tokens) == 2:
-        english = f"Compute {display_name} of {tokens[0].value} and {tokens[1].value}"
-    else:
-        english = f"Compute {display_name}"
-
-    if round_spec:
-        round_eng = get_round_english(round_spec)
-        english += f" then {round_eng}"
-
     node = FunctionNode(
-        step=step, ins_type=ins_type, template_id=template_id, name=ins_type.name, args=args, english=english
+        step=step, ins_type=ins_type, template_id=template_id, name=display_name, args=args, round_spec=round_spec
     )
+    node.english = render_node(node)  # Render the English description
+
     return [node]
 
 
@@ -589,7 +576,6 @@ def parse_data_source(
     step = int(raw_ins.get("n", 0))
     ins_type = InsType(int(raw_ins.get("t", 0)))
 
-    source_id = tokens[0].value if tokens else ""
     node = FunctionNode(
         step=step,
         ins_type=ins_type,
@@ -598,6 +584,7 @@ def parse_data_source(
             RawNode(step=step, ins_type=ins_type, template_id=template_id, raw=tok.value, value=tok.value)
             for tok in tokens
         ],
-        english="DataSource call not implemented",
     )
+
+    node.english = render_node(node)  # Render the English description
     return [node]

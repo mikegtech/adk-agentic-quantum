@@ -65,6 +65,7 @@ class FunctionNode(ASTNode):
 
     name: str
     args: list[RawNode]
+    round_spec: str | None = None
 
 
 @dataclass
