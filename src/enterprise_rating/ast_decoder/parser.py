@@ -8,10 +8,20 @@ from enterprise_rating.entities.algorithm import Algorithm
 from enterprise_rating.entities.dependency import DependencyBase
 from enterprise_rating.entities.program_version import ProgramVersion
 
-from .ast_nodes import ArithmeticNode, AssignmentNode, ASTNode, CompareNode, FunctionNode, IfNode, JumpNode, RawNode
+from .ast_nodes import (
+    ArithmeticNode,
+    AssignmentNode,
+    ASTNode,
+    CompareNode,
+    FunctionNode,
+    IfNode,
+    JumpNode,
+    RawNode,
+    TypeCheckNode,
+)
 from .decode_mif import decode_mif
 from .defs import InsType
-from .helpers.var_lookup import get_var_desc
+from .helpers.var_lookup import get_target_var_desc, get_var_desc
 from .tokenizer import Token
 
 
@@ -19,8 +29,9 @@ from .tokenizer import Token
 def parse(
     tokens: list[Token],
     raw_ins: dict,
-    algorithm_or_dependency: Algorithm | DependencyBase | None = None,
+    algorithm_or_dependency: list[Algorithm | DependencyBase] | None = None,
     program_version: ProgramVersion | None = None,
+    dep_item: DependencyBase | None = None,
 ) -> list[ASTNode]:
     """Main parser dispatcher: inspects InsType and directs to the appropriate subparser.
     Supports algorithm_or_dependency=None or program_version=None by skipping any lookups/jumps.
@@ -78,6 +89,10 @@ def parse(
         InsType.RANK_ACROSS_CATEGORY_ALL_AVAILABLE_ALT: (parse_rank_flag, "RANK_ACROSS_CATEGORY_ALL_AVAILABLE_ALT"),  # noqa: E241
         InsType.RANK_ACROSS_CATEGORY_ALT: (parse_rank_flag, "RANK_ACROSS_CATEGORY_ALT"),  # noqa: E241
         InsType.SET_UNDERWRITING_TO_FAIL: (parse_empty, "SET_UNDERWRITING_TO_FAIL"),  # noqa: E241
+        # Date functions
+        InsType.IS_DATE: (parse_type_check, "IS_DATE"),  # noqa: E241
+        InsType.IS_NUMERIC: (parse_type_check, "IS_NUMERIC"),  # noqa: E241
+        InsType.IS_ALPHA: (parse_type_check, "IS_ALPHA"),  # noqa: E241
     }
 
     parser_func_tuple = dispatch_map.get(ins_type) if ins_type is not None else None
@@ -92,8 +107,12 @@ def parse(
         if ins_type == InsType.IF:
             return parse_if(tokens, raw_ins, algorithm_or_dependency, program_version, template_id)
 
+        if ins_type == InsType.STRING_ADDITION:
+            # Special case for STRING_ADDITION: we need raw_ins + tokens
+            return parse_string_addition(tokens, raw_ins, dep_item, algorithm_or_dependency, program_version, template_id)
+
         # Some parsers need raw_ins + algorithm_or_dependency + program_version
-        if parser_func in (parse_if, parse_if_date, parse_data_source):
+        if parser_func in (parse_if, parse_if_date, parse_data_source, parse_type_check):
             return parser_func(tokens, raw_ins, algorithm_or_dependency, program_version, template_id)  # type: ignore
 
         return parser_func(tokens, step, ins_type, algorithm_or_dependency, program_version, template_id)  # type: ignore
@@ -108,7 +127,7 @@ def parse_rank_flag(
     tokens: list[Token],
     step: int,
     ins_type: InsType,
-    algorithm_or_dependency: Algorithm | DependencyBase | None = None,
+    algorithm_or_dependency: list[Algorithm | DependencyBase] | None = None,
     program_version: ProgramVersion | None = None,
     template_id: str = "",
 ) -> list[ASTNode]:
@@ -141,7 +160,7 @@ def parse_sort(
     tokens: list[Token],
     step: int,
     ins_type: InsType,
-    algorithm_or_dependency: Algorithm | DependencyBase | None = None,
+    algorithm_or_dependency: list[Algorithm | DependencyBase] | None = None,
     program_version: ProgramVersion | None = None,
     template_id: str = "",
 ) -> list[ASTNode]:
@@ -155,7 +174,7 @@ def parse_mask(
     tokens: list[Token],
     step: int,
     ins_type: InsType,
-    algorithm_or_dependency: Algorithm | DependencyBase | None = None,
+    algorithm_or_dependency: list[Algorithm | DependencyBase] | None = None,
     program_version: ProgramVersion | None = None,
     template_id: str = "",
 ) -> list[ASTNode]:
@@ -170,7 +189,7 @@ def parse_empty(
     tokens: list[Token],
     step: int,
     ins_type: InsType,
-    algorithm_or_dependency: Algorithm | DependencyBase | None = None,
+    algorithm_or_dependency: list[Algorithm | DependencyBase] | None = None,
     program_version: ProgramVersion | None = None,
     template_id: str = "",
 ) -> list[ASTNode]:
@@ -183,7 +202,7 @@ def parse_set_string(
     tokens: list[Token],
     step: int,
     ins_type: InsType,
-    algorithm_or_dependency: Algorithm | DependencyBase | None = None,
+    algorithm_or_dependency: list[Algorithm | DependencyBase] | None = None,
     program_version: ProgramVersion | None = None,
     template_id: str = "",
 ) -> list[ASTNode]:
@@ -218,37 +237,45 @@ def parse_set_string(
 def parse_string_addition(
     tokens: list[Token],
     raw_ins: dict,
-    algorithm_or_dependency: Algorithm | DependencyBase | None = None,
+    parent: Algorithm | DependencyBase | None = None,
+    algorithm_or_dependency: list[Algorithm | DependencyBase] | None = None,
     program_version: ProgramVersion | None = None,
     template_id: str = "",
 ) -> list[ASTNode]:
-    """String Addition: build a FunctionNode that concatenates all tokens,
-    stripping '[' and ']' but preserving them in `raw`, and looking up
-    human-friendly descriptions for each piece and for the overall summary.
-    """
-    # 1) pull step and ins_type out of the raw_ins dict
-    step = int(raw_ins.get("n", 0))
-    ins_type = InsType(int(raw_ins.get("t", 0)))
+    """Parse String Addition instructions (InsType.STRING_ADDITION)."""
+    step = int(raw_ins["n"])
+    ins_type = InsType(int(raw_ins["t"]))
+    # 1) Build the concat expression
+    args = [RawNode(step, ins_type, raw=t.value,
+                    value=get_var_desc(t.value, algorithm_or_dependency, program_version))
+            for t in tokens]
 
-    # 2) build a RawNode for each token, stripping brackets only for lookup
-    args: list[RawNode] = []
-    for t in tokens:
-        original = t.value
-        clean = original.replace("[", "").replace("]", "")
-        desc = get_var_desc(clean, algorithm_or_dependency, program_version)
-        args.append(RawNode(step=step, ins_type=ins_type, template_id=template_id, raw=original, value=desc))
-
-    func_node = FunctionNode(
-        step=step,
-        ins_type=ins_type,
+    concat = FunctionNode(
+        step=step, ins_type=ins_type,
         name="StringAddition",
-        template_id=template_id,
         args=args,
     )
+    # 2) Build the assignment to the target variable
+    target_raw = raw_ins.get("ins_tar") or ""
+    target_val = get_var_desc(target_raw, algorithm_or_dependency, program_version)
 
-    func_node.english = render_node(func_node)
+    if target_raw == target_val:
+        target_val = get_target_var_desc(target_raw, parent)
 
-    return [func_node]
+    assign = AssignmentNode(
+        step=step,
+        ins_type=ins_type,
+        var=target_raw,         # ins_tar goes here
+        expr=concat,            # the FunctionNode becomes the expression
+        target=target_val,
+        template_id=template_id,
+        next_true=None,
+        next_false=None,
+    )
+
+    # assign.english = render_node(assign)
+
+    return [assign]
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -256,7 +283,7 @@ def parse_date_diff(
     tokens: list[Token],
     step: int,
     ins_type: InsType,
-    algorithm_or_dependency: Algorithm | DependencyBase | None = None,
+    algorithm_or_dependency: list[Algorithm | DependencyBase] | None = None,
     program_version: ProgramVersion | None = None,
     template_id: str = "",
 ) -> list[ASTNode]:
@@ -292,7 +319,7 @@ def parse_date_addition(
     tokens: list[Token],
     step: int,
     ins_type: InsType,
-    algorithm_or_dependency: Algorithm | DependencyBase | None = None,
+    algorithm_or_dependency: list[Algorithm | DependencyBase] | None = None,
     program_version: ProgramVersion | None = None,
     template_id: str = "",
 ) -> list[ASTNode]:
@@ -324,7 +351,7 @@ def parse_date_addition(
 def parse_if_date(
     tokens: list[Token],
     raw_ins: dict,
-    algorithm_or_dependency: Algorithm | DependencyBase | None = None,
+    algorithm_or_dependency: list[Algorithm | DependencyBase] | None = None,
     program_version: ProgramVersion | None = None,
     template_id: str = "",
 ) -> list[ASTNode]:
@@ -392,7 +419,7 @@ def parse_if_date(
 def parse_if(
     tokens: list["Token"],
     raw_ins: dict,
-    algorithm_or_dependency: Algorithm | DependencyBase | None = None,
+    algorithm_or_dependency: list[Algorithm | DependencyBase] | None = None,
     program_version: ProgramVersion | None = None,
     template_id: str = "",
 ) -> list["ASTNode"]:
@@ -409,6 +436,10 @@ def parse_if(
         left_val = parts[1]
         operator = parts[2]
         right_val = parts[3]
+    elif len(parts) == 3:
+        left_val = parts[0]
+        operator = parts[1]
+        right_val = parts[2]
     else:
         # If unexpected format, capture entire string as left_val
         left_val = ins_str
@@ -461,7 +492,7 @@ def parse_arithmetic(
     tokens: list[Token],
     step: int,
     ins_type: InsType,
-    algorithm_or_dependency: Algorithm | DependencyBase | None = None,
+    algorithm_or_dependency: list[Algorithm | DependencyBase] | None = None,
     program_version: ProgramVersion | None = None,
     template_id: str = "",
 ) -> list[ASTNode]:
@@ -479,8 +510,11 @@ def parse_arithmetic(
         operator = tokens[1].value
         right_val = tokens[2].value
 
-        left_node = RawNode(step=step, ins_type=ins_type, template_id=template_id, raw=left_val, value=left_val)
-        right_node = RawNode(step=step, ins_type=ins_type, template_id=template_id, raw=right_val, value=right_val)
+        left_desc = get_var_desc(left_val, algorithm_or_dependency, program_version)
+        left_node = RawNode(step=step, ins_type=ins_type, template_id=template_id, raw=left_val, value=left_desc)
+
+        right_desc = get_var_desc(right_val, algorithm_or_dependency, program_version)
+        right_node = RawNode(step=step, ins_type=ins_type, template_id=template_id, raw=right_val, value=right_desc)
 
         node = ArithmeticNode(
             step=step,
@@ -506,7 +540,7 @@ def parse_function(
     tokens: list[Token],
     step: int,
     ins_type: InsType,
-    algorithm_or_dependency: Algorithm | DependencyBase | None = None,
+    algorithm_or_dependency: list[Algorithm | DependencyBase] | None = None,
     program_version: ProgramVersion | None = None,
     template_id: str = "",
 ) -> list[ASTNode]:
@@ -548,7 +582,7 @@ def parse_function(
 def parse_call(
     tokens: list[Token],
     raw_ins: dict,
-    algorithm_or_dependency: Algorithm | DependencyBase | None = None,
+    algorithm_or_dependency: list[Algorithm | DependencyBase] | None = None,
     program_version: ProgramVersion | None = None,
     template_id: str = "",
 ) -> list[ASTNode]:
@@ -566,7 +600,7 @@ def parse_call(
 def parse_data_source(
     tokens: list[Token],
     raw_ins: dict,
-    algorithm_or_dependency: Algorithm | DependencyBase | None = None,
+    algorithm_or_dependency: list[Algorithm | DependencyBase] | None = None,
     program_version: ProgramVersion | None = None,
     template_id: str = "",
 ) -> list[ASTNode]:
@@ -587,4 +621,81 @@ def parse_data_source(
     )
 
     node.english = render_node(node)  # Render the English description
+    return [node]
+
+
+def parse_type_check(
+    tokens: list[Token],
+    raw_ins: dict,
+    algorithm_or_dependency: list[Algorithm | DependencyBase] | None = None,
+    program_version: ProgramVersion | None = None,
+    template_id: str = "",
+) -> list[ASTNode]:
+    """Parse IS_DATE (95), IS_NUMERIC (98), or IS_ALPHA (99):
+    Build an IfNode whose condition is a TypeCheckNode, and branches are JumpNodes.
+    """
+    step = int(raw_ins.get("n", 0))
+    ins_type = InsType(int(raw_ins.get("t", 0)))
+
+    # 1) extract the single variable token
+    if tokens and tokens[0].value.startswith("~") and len(tokens) > 1:
+        left_raw = tokens[1].value
+    else:
+        left_raw = tokens[0].value if tokens else ""
+
+    left_desc = get_var_desc(left_raw, algorithm_or_dependency, program_version)
+    left_node = RawNode(
+        step=step,
+        ins_type=ins_type,
+        template_id=template_id,
+        step_type=ins_type,
+        raw=left_raw,
+        value=left_desc,
+    )
+
+    # 2) map ins_type to a human‐readable check_type
+    check_map = {
+        InsType.IS_DATE:    "date",
+        InsType.IS_NUMERIC: "numeric",
+        InsType.IS_ALPHA:   "alpha",
+    }
+    check_type = check_map.get(ins_type, ins_type.name.lower())
+
+    # 3) build the unary condition node
+    cond_node = TypeCheckNode(
+        step=step,
+        ins_type=ins_type,
+        template_id=template_id,
+        step_type=ins_type,
+        left=left_node,
+        check_type=check_type,
+    )
+
+    # 4) wire up true/false branches via seq_t / seq_f
+    seq_t = raw_ins.get("seq_t")
+    seq_f = raw_ins.get("seq_f")
+    true_branch = []
+    false_branch = []
+    if seq_t is not None and int(seq_t) > 0:
+        true_branch = [
+            JumpNode(step=step, ins_type=ins_type, template_id="JUMP", step_type=ins_type,
+                     target=int(seq_t))
+        ]
+    if seq_f is not None and int(seq_f) > 0:
+        false_branch = [
+            JumpNode(step=step, ins_type=ins_type, template_id="JUMP", step_type=ins_type,
+                     target=int(seq_f))
+        ]
+
+    # 5) combine into a single IfNode
+    node = IfNode(
+        step=step,
+        ins_type=ins_type,
+        template_id="TYPE_CHECK",
+        step_type=ins_type,
+        condition=cond_node,
+        true_branch=true_branch,
+        false_branch=false_branch,
+    )
+
     return [node]

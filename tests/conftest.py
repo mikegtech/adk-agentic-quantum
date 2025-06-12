@@ -16,3 +16,16 @@ else:
 
 
 pytest_plugins = ["fixtures.datapreprocessor_fixture"]
+
+# tests/conftest.py
+
+from dataclasses import asdict, is_dataclass
+
+
+def node_to_dict(n):
+    if is_dataclass(n):
+        return asdict(n)
+    elif hasattr(n, "model_dump"):
+        return n.model_dump()
+    else:
+        return dict(n)

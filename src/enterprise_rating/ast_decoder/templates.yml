@@ -50,19 +50,26 @@ step_types:
 # 2) AST-level templates (template_id → snippet)
 templates:
   IF_COMPARE: |
-    **IF** *{left}* **{op}** *{right}*
+    **IF** *{{left}}* **{{op}}** *{{right}}*
   MULTI_IF: |
-    **{cond_op}** *{left}* **{op}** *{right}*
+    {%- for cond in conditions -%}
+      {%- if not loop.first -%} **{{ joiner }}** {%- endif -%}
+      *{{ cond.left.raw }}* **{{ cond.operator }}** *{{ cond.right.raw }}*
+    {%- endfor -%}
   ASSIGNMENT: |
-    *{left}* **=** *{right}*
+    *{{left}}* **=** *{{right}}*
   STRING_CONCAT: |
-    Concatenate {args}
+    Concatenate {{ args|join(", ") }}
   JUMP: |
-    **Then** go to step *{target}*
+    {% if target == -2 %}
+    **DONE**
+    {% else %}
+    **Then** jump to step *{{ target }}*
+    {% endif %}
   DATE_DIFF: |
-    Calculate *{target}* as difference in days between *{left}* and *{right}*
+    Calculate *{{target}}* as difference in days between *{left}* and *{{right}}*
   ARITHMETIC: |
-    *{left}* **{operator}** *{right}*{rounding}
+    *{{left}}* **{{operator}}** *{{right}}*{{rounding}}
   FUNCTION_CALL: |
     **{{ name }}**({{ args|join(", ") }}){% if round_spec %} • rounded to {{ round_spec }} places{% endif %}
   MASK: |

@@ -10,8 +10,9 @@ from .tokenizer import tokenize
 
 def decode_ins(
     raw_ins: dict,
-    algorithm_or_dependency: Algorithm | DependencyBase | None = None,
+    algorithm_or_dependency: list[Algorithm | DependencyBase] | None = None,
     program_version: ProgramVersion | None = None,
+    dep_item: DependencyBase | None = None,
     include_english: bool = False
 ) -> list:
     """Entrypoint: decode one instruction dict into a list of AST nodes.
@@ -27,11 +28,11 @@ def decode_ins(
       List[ASTNode]
 
     """
-    existing = raw_ins.get("ast")
-    if existing is not None and isinstance(existing, list) and len(existing) > 0:
+    # existing = raw_ins.get("ast")
+    # if existing is not None and isinstance(existing, list) and len(existing) > 0:
         # If the AST is already present, return it directly
-        return existing
+    #    return existing
 
     ins_str = raw_ins.get("ins", "") or ""
     tokens = tokenize(ins_str)
-    return parse(tokens, raw_ins, algorithm_or_dependency, program_version)
+    return parse(tokens, raw_ins, algorithm_or_dependency, program_version, dep_item)

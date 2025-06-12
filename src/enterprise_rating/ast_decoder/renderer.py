@@ -1,16 +1,30 @@
 from pathlib import Path
 
 import yaml
+from jinja2 import Template
 
-from enterprise_rating.ast_decoder.ast_nodes import (ArithmeticNode, IfNode,
-                                                     JumpNode)
+from enterprise_rating.ast_decoder.ast_nodes import (
+   ArithmeticNode,
+   AssignmentNode,
+   CompareNode,
+   FunctionNode,
+   IfNode,
+   JumpNode,
+   MultiConditionNode,
+)
 
 # Load once at module import
 with open(Path(__file__).parent / "templates.yml", encoding="utf-8") as f:
-    _cfg = yaml.safe_load(f)
+   _cfg = yaml.safe_load(f)
 
+# Load and compile all templates at import time
+# _cfg = yaml.safe_load(Path(__file__).parent / "templates.yml")
+TEMPLATES = {
+    tpl_id: Template(tpl_text)
+    for tpl_id, tpl_text in _cfg["templates"].items()
+}
 STEP_TYPES = _cfg["step_types"]
-TEMPLATES = _cfg["templates"]
+
 
 
 def render_node_old(node):
@@ -37,27 +51,79 @@ def render_node_old(node):
     return f"**{step_label}**: {filled}"
 
 
-def render_node(node):
-    """Render *any* AST node by looking up its template_id and
-    feeding node attributes into the Jinja2 template.
+def render_node(node) -> str:
+    """Render any ASTNode according to its template_id.
+    Special-case nodes without a `condition` (like JumpNode).
+    If anything goes wrong, capture the exception text as node.english.
     """
-    tpl = TEMPLATES.get(node.template_id)
-    if not tpl:
-        return node.english or ""
+    try:
+        tpl: Template | None = TEMPLATES.get(node.template_id)
+        # if no template, fall back to pre-set .english
+        if tpl is None:
+            return getattr(node, "english", f"No Template found: {node.template_id}") or "What?"
 
-    # Build a context of all possible fields—templates only use what they need
-    ctx = {
-        "left": getattr(node.condition,  "left",   None) and node.condition.left.raw,
-        "operator": getattr(node.condition, "operator", None),
-        "right": getattr(node.condition, "right",  None) and node.condition.right.raw,
-        "cond_op": getattr(node.condition, "cond_op", None),
-        "args": [arg.raw for arg in getattr(node, "args", [])],
-        "target": getattr(node, "target", None),
-        "round_spec": getattr(node, "round_spec", None),
-        "english": getattr(node, "english", ""),
-    }
-    # Render and return the final string
-    return tpl.render(**ctx)
+        # 1) JumpNode: only {{ target }}
+        if isinstance(node, JumpNode):
+            return tpl.render(target=node.target).strip()
+
+        # 2) IfNode
+        if isinstance(node, IfNode):
+            cond = node.condition
+            # 2a) Single condition
+            if isinstance(cond, CompareNode):
+                return tpl.render(
+                    left=cond.left.raw,
+                    operator=cond.operator,
+                    right=cond.right.raw,
+                    cond_op=getattr(cond, "cond_op", "") or ""
+                )
+            # 2b) Multi-condition
+            if isinstance(cond, MultiConditionNode):
+                return tpl.render(
+                    conditions=cond.conditions,
+                    joiner=cond.joiner
+                )
+            # unexpected condition type
+            return getattr(node, "english", "") or ""
+
+        # 3) ArithmeticNode: {{ left }}, {{ operator }}, {{ right }}, {{ round_spec }}
+        if isinstance(node, ArithmeticNode):
+            ctx = {
+                "left":       node.left.raw,
+                "operator":   node.operator,
+                "right":      node.right.raw,
+                "round_spec": node.round_spec or "",
+            }
+            return tpl.render(**ctx)
+
+        # 4) FunctionNode: {{ name }}, {{ args }}, {{ round_spec }}
+        if isinstance(node, FunctionNode):
+            ctx = {
+                "name":       node.name,
+                "args":       ", ".join(arg.raw for arg in node.args),
+                "round_spec": getattr(node, "round_spec", "") or "",
+            }
+            return tpl.render(**ctx)
+
+        if isinstance(node, AssignmentNode):
+            # 4a) AssignmentNode: {{ var }}, {{ expr }}, {{ target }}
+            ctx = {
+                "name":       "Arithmetic",
+                "args":       ", ".join(arg.raw for arg in node.expr.args),
+                "round_spec": getattr(node, "round_spec", "") or "",
+            }
+            return tpl.render(**ctx)
+
+
+        # 5) Fallback to any .english on the node
+        return getattr(node, "english", "") or ""
+
+    except Exception as e:
+        # On error, store and return the exception text
+        err = str(e)
+        node.english = err
+        return err
+
 
 
 def render_node_new(node):

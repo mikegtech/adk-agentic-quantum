@@ -5,15 +5,17 @@ from pathlib import Path
 
 import xmltodict
 
-from enterprise_rating.ast_decoder.ast_nodes import (ArithmeticNode,
-                                                     AssignmentNode,
-                                                     CompareNode, FunctionNode,
-                                                     IfNode, RawNode)
+from enterprise_rating.ast_decoder.ast_nodes import (
+    ArithmeticNode,
+    AssignmentNode,
+    CompareNode,
+    FunctionNode,
+    IfNode,
+    RawNode,
+)
 from enterprise_rating.ast_decoder.decoder import decode_ins  # noqa: F401
-from enterprise_rating.entities.dependency import (CalculatedVariable,
-                                                   DependencyBase)
-from enterprise_rating.entities.program_version import \
-    ProgramVersion  # wherever you defined your Pydantic models
+from enterprise_rating.entities.dependency import CalculatedVariable, DependencyBase
+from enterprise_rating.entities.program_version import ProgramVersion  # wherever you defined your Pydantic models
 
 logger = logging.getLogger(__name__)
 
@@ -291,24 +293,25 @@ class ProgramVersionRepository:  # noqa: D101
                 queue.append(dep)
 
             while queue:
-                dep = queue.pop(0)
-                dep_vars = getattr(dep, "dependency_vars", []) or []
+                cur_dep = queue.pop(0)
+                dep_vars = getattr(cur_dep, "dependency_vars", []) or []
 
                 # Process this dependency’s own steps (each should be an Instruction model)
-                dep_steps = getattr(dep, "steps", []) or []
+                dep_steps = getattr(cur_dep, "steps", []) or []
                 for instr in dep_steps:
                     if instr.ast is None:
                         try:
                             raw_dict = instr.model_dump()
-                            nodes = decode_ins(raw_dict, dep_vars, progver)
+                            nodes = decode_ins(raw_dict, dep_vars, progver, cur_dep)
                             instr.ast = [asdict(n) for n in nodes] if nodes else []
+
                         except Exception:
                             instr.ast = []
 
                 # If this dependency is a CalculatedVariable, enqueue its nested dependency_vars
-                if isinstance(dep, CalculatedVariable):
-                    nested = getattr(dep, "dependency_vars", []) or []
-                    for nd in nested:
+                nested = getattr(cur_dep, "dependency_vars", []) or []
+                for nd in nested:
+                    if isinstance(nd, CalculatedVariable):
                         queue.append(nd)
 
 
