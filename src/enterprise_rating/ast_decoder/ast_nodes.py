@@ -30,6 +30,7 @@ class RawNode(ASTNode):
 
     raw: str
     value: str
+    type: str | None = None
 
 @dataclass
 class CompareNode(ASTNode):

@@ -47,6 +47,7 @@ def get_target_var_desc(target_var: str,dep: Algorithm | DependencyBase | None =
 
 def get_var_desc(
     target_var: str,
+    token_type: str | None = None,
     deps: list[Algorithm | DependencyBase] | None = None,
     program_version: ProgramVersion | None = None,
 ) -> str:

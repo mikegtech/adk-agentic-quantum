@@ -29,7 +29,8 @@ from enterprise_rating.tools.tools import get_rating_algorithms, get_releases
 
 from .config import Config
 from .prompts import GLOBAL_INSTRUCTION, INSTRUCTION
-from .shared_libraries.callbacks import after_tool, before_agent, before_tool, rate_limit_callback
+from .shared_libraries.callbacks import (after_tool, before_agent, before_tool,
+                                         rate_limit_callback)
 
 warnings.filterwarnings("ignore", category=UserWarning, module=".*pydantic.*")
 

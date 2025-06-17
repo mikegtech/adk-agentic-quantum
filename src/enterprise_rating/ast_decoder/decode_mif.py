@@ -2,12 +2,14 @@
 
 from typing import cast
 
+from enterprise_rating.ast_decoder.helpers.ins_helpers import get_ins_type_def
 from enterprise_rating.entities.algorithm import Algorithm
 from enterprise_rating.entities.dependency import DependencyBase
 from enterprise_rating.entities.program_version import ProgramVersion
 
-from .ast_nodes import ASTNode, CompareNode, IfNode, JumpNode, MultiConditionNode, RawNode
-from .defs import MULTI_IF_SYMBOL
+from .ast_nodes import (ASTNode, CompareNode, IfNode, JumpNode,
+                        MultiConditionNode, RawNode)
+from .defs_legacy import MULTI_IF_SYMBOL
 from .tokenizer import tokenize
 
 
@@ -52,7 +54,7 @@ def decode_mif(
         # tokenize & build a mini‐raw for parse_if
         raw = raw_ins.copy()
         raw["ins"] = frag.strip()
-        tokens = tokenize(raw["ins"])
+        tokens = tokenize(raw["ins"], get_ins_type_def(raw["t"]))
         nodes = parse_if(tokens, raw, algorithm_or_dependency, program_version)
         # parse_if always returns one IfNode with condition=CompareNode
         if_node = cast(IfNode, nodes[0])

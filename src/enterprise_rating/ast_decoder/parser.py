@@ -1,4 +1,5 @@
-# noqa: F401, F841, ARG001
+# noqa: F401, F841, ARG001, E241
+# flake8: noqa: E501
 # pylint: disable=unused-import, unused-variable, unused-argument, missing-module-docstring
 from collections.abc import Callable
 
@@ -8,19 +9,11 @@ from enterprise_rating.entities.algorithm import Algorithm
 from enterprise_rating.entities.dependency import DependencyBase
 from enterprise_rating.entities.program_version import ProgramVersion
 
-from .ast_nodes import (
-    ArithmeticNode,
-    AssignmentNode,
-    ASTNode,
-    CompareNode,
-    FunctionNode,
-    IfNode,
-    JumpNode,
-    RawNode,
-    TypeCheckNode,
-)
+from .ast_nodes import (ArithmeticNode, AssignmentNode, ASTNode, CompareNode,
+                        FunctionNode, IfNode, JumpNode, RawNode, TypeCheckNode)
 from .decode_mif import decode_mif
 from .defs import InsType
+from .helpers.ins_helpers import get_ins_type_def
 from .helpers.var_lookup import get_target_var_desc, get_var_desc
 from .tokenizer import Token
 
@@ -46,10 +39,7 @@ def parse(
       List[ASTNode]: The parsed AST nodes for the instruction.
 
     """
-    try:
-        ins_type = InsType(int(raw_ins.get("t", InsType.UNKNOWN)))
-    except (ValueError, TypeError):
-        ins_type = InsType.UNKNOWN
+    ins_type = get_ins_type_def(raw_ins.get("t"))  # type: InsType
 
     step = int(raw_ins.get("n", 0))
     ins_str = raw_ins.get("ins", "") or ""
@@ -57,42 +47,37 @@ def parse(
     # 3) InsType dispatch map
     # noqa: E241
     dispatch_map: dict[InsType, tuple[Callable, str]] = {
-        InsType.ARITHMETIC: (parse_arithmetic, "ASSIGNMENT"),  # noqa: E241
-        InsType.IF: (parse_if, "IF_COMPARE"),  # noqa: E241
-        InsType.IF_DATE: (parse_if_date, "IF_COMPARE"),  # noqa: E241
-        InsType.CALL: (parse_call, "FUNCTION_CALL"),  # noqa: E241
-        InsType.SORT: (parse_sort, "FUNCTION_CALL"),  # noqa: E241
-        InsType.MASK: (parse_mask, "MASK"),  # noqa: E241
-        InsType.SET_STRING: (parse_set_string, "ASSIGNMENT"),  # noqa: E241
-        InsType.EMPTY: (parse_empty, "EMPTY"),  # noqa: E241
-        InsType.STRING_ADDITION: (parse_string_addition, "STRING_CONCAT"),  # noqa: E241
-        InsType.DATE_DIFF_DAYS: (parse_date_diff, "DATE_DIFF"),  # noqa: E241
-        InsType.DATE_DIFF_MONTHS: (parse_date_diff, "DATE_DIFF"),  # noqa: E241
-        InsType.DATE_DIFF_YEARS: (parse_date_diff, "DATE_DIFF"),  # noqa: E241
-        InsType.DATE_ADDITION: (parse_date_addition, "DATE_DIFF"),  # noqa: E241
-        # Math & Trig functions all use the same template
-        InsType.POWER: (parse_function, "FUNCTION_CALL"),  # noqa: E241
-        InsType.LOG: (parse_function, "FUNCTION_CALL"),  # noqa: E241
-        InsType.LOG10: (parse_function, "FUNCTION_CALL"),  # noqa: E241
-        InsType.EXP: (parse_function, "FUNCTION_CALL"),  # noqa: E241
-        InsType.SQRT: (parse_function, "FUNCTION_CALL"),  # noqa: E241
-        InsType.COS: (parse_function, "FUNCTION_CALL"),  # noqa: E241
-        InsType.SIN: (parse_function, "FUNCTION_CALL"),  # noqa: E241
-        InsType.TAN: (parse_function, "FUNCTION_CALL"),  # noqa: E241
-        InsType.COSH: (parse_function, "FUNCTION_CALL"),  # noqa: E241
-        InsType.SINH: (parse_function, "FUNCTION_CALL"),  # noqa: E241
-        InsType.TANH: (parse_function, "FUNCTION_CALL"),  # noqa: E241
-        # DataSource
-        InsType.DATA_SOURCE: (parse_data_source, "QUERY_DATA_SOURCE"),  # noqa: E241
-        # Special cases for RANK and FLAG
-        InsType.RANK_ACROSS_CATEGORY: (parse_rank_flag, "RANK_FLAG"),  # noqa: E241
-        InsType.RANK_ACROSS_CATEGORY_ALL_AVAILABLE_ALT: (parse_rank_flag, "RANK_ACROSS_CATEGORY_ALL_AVAILABLE_ALT"),  # noqa: E241
-        InsType.RANK_ACROSS_CATEGORY_ALT: (parse_rank_flag, "RANK_ACROSS_CATEGORY_ALT"),  # noqa: E241
-        InsType.SET_UNDERWRITING_TO_FAIL: (parse_empty, "SET_UNDERWRITING_TO_FAIL"),  # noqa: E241
-        # Date functions
-        InsType.IS_DATE: (parse_type_check, "IS_DATE"),  # noqa: E241
-        InsType.IS_NUMERIC: (parse_type_check, "IS_NUMERIC"),  # noqa: E241
-        InsType.IS_ALPHA: (parse_type_check, "IS_ALPHA"),  # noqa: E241
+        InsType.DEF_INS_TYPE_ARITHEMETIC: (parse_arithmetic, "ASSIGNMENT"),      # 0
+        InsType.DEF_INS_TYPE_NUMERIC_IF: (parse_if, "IF_COMPARE"),               # 1
+        InsType.DEF_INS_TYPE_CALL: (parse_call, "FUNCTION_CALL"),                # 2
+        InsType.SORT: (parse_sort, "FUNCTION_CALL"),                             # 3
+        InsType.DEF_INS_TYPE_MASK: (parse_mask, "MASK"),                         # 4
+        InsType.SET_STRING: (parse_set_string, "ASSIGNMENT"),                    # 5
+        InsType.EMPTY: (parse_empty, "EMPTY"),                                   # 6
+        InsType.INS_STR_CONCAT: (parse_string_addition, "STRING_CONCAT"),        # 86
+        InsType.DATE_DIFF_DAYS: (parse_date_diff, "DATE_DIFF"),                  # 57
+        InsType.DATE_DIFF_MONTHS: (parse_date_diff, "DATE_DIFF"),                # 58
+        InsType.DATE_DIFF_YEARS: (parse_date_diff, "DATE_DIFF"),                 # 59
+        InsType.INS_DATE_ADDITION: (parse_date_addition, "DATE_DIFF"),           # 126
+        InsType.INS_MATH_FUNC_EXP: (parse_function, "FUNCTION_CALL"),            # 127
+        InsType.INS_MATH_FUNC_LOG: (parse_function, "FUNCTION_CALL"),            # 128
+        InsType.INS_MATH_FUNC_LOG10: (parse_function, "FUNCTION_CALL"),          # 129
+        InsType.INS_MATH_FUNC_EXPE: (parse_function, "FUNCTION_CALL"),           # 130
+        InsType.INS_MATH_FUNC_SQRT: (parse_function, "FUNCTION_CALL"),           # 133
+        InsType.INS_TRIG_FUNC_COS: (parse_function, "FUNCTION_CALL"),            # 138
+        InsType.INS_TRIG_FUNC_SIN: (parse_function, "FUNCTION_CALL"),            # 142
+        InsType.INS_TRIG_FUNC_TAN: (parse_function, "FUNCTION_CALL"),            # 146
+        InsType.INS_TRIG_FUNC_COSH: (parse_function, "FUNCTION_CALL"),           # 139
+        InsType.INS_TRIG_FUNC_SINH: (parse_function, "FUNCTION_CALL"),           # 143
+        InsType.INS_TRIG_FUNC_TANH: (parse_function, "FUNCTION_CALL"),           # 147
+        InsType.INS_QUERY_DATA_SOURCE: (parse_data_source, "QUERY_DATA_SOURCE"), # 200
+        InsType.INS_RANK_CATEGORY_INSTANCE: (parse_rank_flag, "RANK_FLAG"),      # 94
+        InsType.INS_RANK_CATEGORY_AVAILABLE: (parse_rank_flag, "RANK_ACROSS_CATEGORY_ALL_AVAILABLE_ALT"), # 93
+        InsType.DEF_INS_TYPE_SET_UNDERWRITING_TO_FAIL: (parse_empty, "SET_UNDERWRITING_TO_FAIL"), # 254
+        InsType.INS_IS_DATE: (parse_type_check, "IS_DATE"),                      # 95
+        InsType.INS_IS_NUMERIC: (parse_type_check, "IS_NUMERIC"),                # 98
+        InsType.INS_IS_ALPHA: (parse_type_check, "IS_ALPHA"),                    # 99
+        # ...continue for all needed types...
     }
 
     parser_func_tuple = dispatch_map.get(ins_type) if ins_type is not None else None
@@ -104,10 +89,10 @@ def parse(
             return decode_mif(raw_ins, algorithm_or_dependency, program_version, template_id)
 
         # 2) Otherwise, if this is a plain IF, call parse_if
-        if ins_type == InsType.IF:
+        if ins_type == InsType.DEF_INS_TYPE_NUMERIC_IF:
             return parse_if(tokens, raw_ins, algorithm_or_dependency, program_version, template_id)
 
-        if ins_type == InsType.STRING_ADDITION:
+        if ins_type == InsType.INS_STR_CONCAT:
             # Special case for STRING_ADDITION: we need raw_ins + tokens
             return parse_string_addition(tokens, raw_ins, dep_item, algorithm_or_dependency, program_version, template_id)
 
@@ -118,7 +103,7 @@ def parse(
         return parser_func(tokens, step, ins_type, algorithm_or_dependency, program_version, template_id)  # type: ignore
 
     # 4) Fallback: if no InsType matched, produce a RawNode
-    desc = get_var_desc(ins_str, algorithm_or_dependency, program_version)
+    desc = get_var_desc(ins_str, None, algorithm_or_dependency, program_version)
     return [RawNode(step=step, ins_type=ins_type, raw=ins_str, value=desc)]
 
 
@@ -144,14 +129,14 @@ def parse_rank_flag(
             and t.type == "WORD"
             and ("GI_" in t.value or "GC_" in t.value)
         ):
-            vars_expanded.append(get_var_desc(t.value, algorithm_or_dependency, program_version))
+            vars_expanded.append(get_var_desc(t.value, t.type, algorithm_or_dependency, program_version))
         else:
             vars_expanded.append(t.value)
 
     if vars_expanded:
         action_text += ": " + ", ".join(vars_expanded)
 
-    desc = get_var_desc(action_text, algorithm_or_dependency, program_version)
+    desc = get_var_desc(action_text, None, algorithm_or_dependency, program_version)
     return [RawNode(step=step, ins_type=ins_type, template_id=template_id, raw=action_text, value=desc)]
 
 
@@ -245,9 +230,17 @@ def parse_string_addition(
     """Parse String Addition instructions (InsType.STRING_ADDITION)."""
     step = int(raw_ins["n"])
     ins_type = InsType(int(raw_ins["t"]))
+
+        # 2) Build the assignment to the target variable
+    target_raw = raw_ins.get("ins_tar") or ""
+    target_val = get_var_desc(target_raw, None, algorithm_or_dependency, program_version)
+
+    if target_raw == target_val:
+        target_val = get_target_var_desc(target_raw, parent)
+
     # 1) Build the concat expression
     args = [RawNode(step, ins_type, raw=t.value,
-                    value=get_var_desc(t.value, algorithm_or_dependency, program_version))
+                value=target_val if t.type == "TARGET" else get_var_desc(t.value, t.type, algorithm_or_dependency, program_version),type=t.type)
             for t in tokens]
 
     concat = FunctionNode(
@@ -255,12 +248,7 @@ def parse_string_addition(
         name="StringAddition",
         args=args,
     )
-    # 2) Build the assignment to the target variable
-    target_raw = raw_ins.get("ins_tar") or ""
-    target_val = get_var_desc(target_raw, algorithm_or_dependency, program_version)
 
-    if target_raw == target_val:
-        target_val = get_target_var_desc(target_raw, parent)
 
     assign = AssignmentNode(
         step=step,
@@ -273,7 +261,7 @@ def parse_string_addition(
         next_false=None,
     )
 
-    # assign.english = render_node(assign)
+    assign.english = render_node(assign)
 
     return [assign]
 
@@ -366,10 +354,10 @@ def parse_if_date(
     op_val = tokens[1].value if len(tokens) > 1 else ""
     right_val = tokens[2].value if len(tokens) > 2 else ""
 
-    left_desc = get_var_desc(left_val, algorithm_or_dependency, program_version)
+    left_desc = get_var_desc(left_val, None, algorithm_or_dependency, program_version)
     left_node = RawNode(step=step, ins_type=ins_type, template_id=template_id, raw=left_val, value=left_desc)
 
-    right_desc = get_var_desc(left_val, algorithm_or_dependency, program_version)
+    right_desc = get_var_desc(left_val, None, algorithm_or_dependency, program_version)
     right_node = RawNode(step=step, ins_type=ins_type, template_id=template_id, raw=right_val, value=right_desc)
 
     condition = CompareNode(
@@ -417,12 +405,12 @@ def parse_if_date(
 
 # ──────────────────────────────────────────────────────────────────────────────
 def parse_if(
-    tokens: list["Token"],
+    tokens: list[Token],
     raw_ins: dict,
     algorithm_or_dependency: list[Algorithm | DependencyBase] | None = None,
     program_version: ProgramVersion | None = None,
     template_id: str = "",
-) -> list["ASTNode"]:
+) -> list[ASTNode]:
     """Parse a single‐clause IF of the form "|VAR|OP|VALUE|" (e.g. "|GR_5370|=|{}|").
     We assume callers (decode_mif or parse) never strip the pipes before we run this.
     """
@@ -446,9 +434,9 @@ def parse_if(
         operator = ""
         right_val = ""
 
-    desc_left = get_var_desc(left_val, algorithm_or_dependency, program_version)
+    desc_left = get_var_desc(left_val, None, algorithm_or_dependency, program_version)
     left_node = RawNode(step=step, ins_type=ins_type, template_id=template_id, raw=left_val, value=desc_left)
-    desc_right = get_var_desc(right_val, algorithm_or_dependency, program_version)
+    desc_right = get_var_desc(right_val, None, algorithm_or_dependency, program_version)
     right_node = RawNode(step=step, ins_type=ins_type, template_id=template_id, raw=right_val, value=desc_right)
 
     condition = CompareNode(
@@ -510,10 +498,10 @@ def parse_arithmetic(
         operator = tokens[1].value
         right_val = tokens[2].value
 
-        left_desc = get_var_desc(left_val, algorithm_or_dependency, program_version)
+        left_desc = get_var_desc(left_val, None, algorithm_or_dependency, program_version)
         left_node = RawNode(step=step, ins_type=ins_type, template_id=template_id, raw=left_val, value=left_desc)
 
-        right_desc = get_var_desc(right_val, algorithm_or_dependency, program_version)
+        right_desc = get_var_desc(right_val, None, algorithm_or_dependency, program_version)
         right_node = RawNode(step=step, ins_type=ins_type, template_id=template_id, raw=right_val, value=right_desc)
 
         node = ArithmeticNode(
@@ -643,7 +631,7 @@ def parse_type_check(
     else:
         left_raw = tokens[0].value if tokens else ""
 
-    left_desc = get_var_desc(left_raw, algorithm_or_dependency, program_version)
+    left_desc = get_var_desc(left_raw, None, algorithm_or_dependency, program_version)
     left_node = RawNode(
         step=step,
         ins_type=ins_type,

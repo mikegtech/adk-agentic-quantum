@@ -1,5 +1,6 @@
 # enterprise_rating/ast_decoder/decoder.py
 
+from enterprise_rating.ast_decoder.helpers.ins_helpers import get_ins_type_def
 from enterprise_rating.entities.algorithm import Algorithm
 from enterprise_rating.entities.dependency import DependencyBase
 from enterprise_rating.entities.program_version import ProgramVersion
@@ -34,5 +35,10 @@ def decode_ins(
     #    return existing
 
     ins_str = raw_ins.get("ins", "") or ""
-    tokens = tokenize(ins_str)
+
+    ins_type = get_ins_type_def(raw_ins.get("t"))
+
+    ins_target = raw_ins.get("ins_tar", "")
+
+    tokens = tokenize(ins_str, ins_type, ins_target)
     return parse(tokens, raw_ins, algorithm_or_dependency, program_version, dep_item)

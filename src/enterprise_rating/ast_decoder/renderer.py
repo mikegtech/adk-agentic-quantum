@@ -3,15 +3,11 @@ from pathlib import Path
 import yaml
 from jinja2 import Template
 
-from enterprise_rating.ast_decoder.ast_nodes import (
-   ArithmeticNode,
-   AssignmentNode,
-   CompareNode,
-   FunctionNode,
-   IfNode,
-   JumpNode,
-   MultiConditionNode,
-)
+from enterprise_rating.ast_decoder.ast_nodes import (ArithmeticNode,
+                                                     AssignmentNode,
+                                                     CompareNode, FunctionNode,
+                                                     IfNode, JumpNode,
+                                                     MultiConditionNode)
 
 # Load once at module import
 with open(Path(__file__).parent / "templates.yml", encoding="utf-8") as f:
@@ -109,7 +105,7 @@ def render_node(node) -> str:
             # 4a) AssignmentNode: {{ var }}, {{ expr }}, {{ target }}
             ctx = {
                 "name":       "Arithmetic",
-                "args":       ", ".join(arg.raw for arg in node.expr.args),
+                "args":       ", ".join(arg.value for arg in node.expr.args),
                 "round_spec": getattr(node, "round_spec", "") or "",
             }
             return tpl.render(**ctx)

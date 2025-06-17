@@ -1,3 +1,6 @@
+from enterprise_rating.ast_decoder.defs import InsType
+
+
 def decode_filter_rule(filter_rule: str, dependency_var_writer, dependency_list) -> None:
     """Stub for DecodeFilterRule: splits filter rules by '-' and writes
     dependency variables to writer.
@@ -69,3 +72,16 @@ def get_next_step_english(next_step: str, current_ins_number: int) -> str:
     if next_step == str(0):
         return f'Step {current_ins_number + 1}'
     return f'Step {next_step}'
+
+
+def get_ins_type_def(ins_type: str | None) -> InsType:
+    """Safely decode instruction type from string to InsType enum."""
+    if ins_type is None:
+        return InsType.UNKNOWN
+
+    try:
+        ins_type_def = InsType(int(ins_type))
+    except (ValueError, TypeError):
+        ins_type_def = InsType.UNKNOWN
+
+    return ins_type_def

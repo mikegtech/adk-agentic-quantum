@@ -59,7 +59,7 @@ templates:
   ASSIGNMENT: |
     *{{left}}* **=** *{{right}}*
   STRING_CONCAT: |
-    Concatenate {{ args|join(", ") }}
+    {{ args.split(',') | map('trim') | select | join(' ') }}
   JUMP: |
     {% if target == -2 %}
     **DONE**
