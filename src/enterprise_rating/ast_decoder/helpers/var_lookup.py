@@ -73,15 +73,15 @@ def get_var_desc(
     """
     # === 1) Handle operator tokens immediately ===
     op_map = {
-        "=": "equals",
-        ">": "greater than",
-        "<": "less than",
-        "<=": "less than or equal to",
-        ">=": "greater than or equal to",
-        "!=": "not equal to",
-        "<>": "not equal to",
-        "@": "bitwise AND",
-        "^": "bitwise OR",
+        "=": "[equals]",
+        ">": "[greater than]",
+        "<": "[less than]",
+        "<=": "[less than or equal to]",
+        ">=": "[greater than or equal to]",
+        "!=": "[not equal to]",
+        "<>": "[not equal to]",
+        "@": "[bitwise AND]",
+        "^": "[bitwise OR]",
     }
     if target_var in op_map:
         return op_map[target_var]

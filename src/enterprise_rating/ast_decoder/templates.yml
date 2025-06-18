@@ -50,21 +50,27 @@ step_types:
 # 2) AST-level templates (template_id → snippet)
 templates:
   IF_COMPARE: |
-    **IF** *{{left}}* **{{op}}** *{{right}}*
+    {%- for c in conditions %}
+    {%- if not loop.first %} **{{ joiner }}** {%- endif %}
+    IF *{{ c.left }}* **{{ c.op }}** *{{ c.right }}*
+    {%- endfor %}
+
+    then *[{% if true_target is none or true_target == -2 %}DONE{% else %}Step {{ true_target }}{% endif %}]*  
+    else *[{% if false_target is none or false_target == -2 %}DONE{% else %}Step {{ false_target }}{% endif %}]*
   MULTI_IF: |
     {%- for cond in conditions -%}
       {%- if not loop.first -%} **{{ joiner }}** {%- endif -%}
       *{{ cond.left.raw }}* **{{ cond.operator }}** *{{ cond.right.raw }}*
     {%- endfor -%}
   ASSIGNMENT: |
-    *{{left}}* **=** *{{right}}*
+    {{ args.split(',') | map('trim') | select | join(' ') }} then {% if next_true == '-2' %} [DONE] {% else %} *[Step {{ next_true }}]* {% endif %}
   STRING_CONCAT: |
-    {{ args.split(',') | map('trim') | select | join(' ') }}
+    {{ args.split(',') | map('trim') | select | join(' ') }} then {% if next_true == '-2' %} [DONE] {% else %} *[Step {{ next_true }}]* {% endif %}
   JUMP: |
     {% if target == -2 %}
     **DONE**
     {% else %}
-    **Then** jump to step *{{ target }}*
+    **Then** *[Step {{ target }}]*
     {% endif %}
   DATE_DIFF: |
     Calculate *{{target}}* as difference in days between *{left}* and *{{right}}*

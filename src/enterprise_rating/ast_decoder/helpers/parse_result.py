@@ -41,11 +41,22 @@ def find_next_var(equation: str, ptr: int, ins_type: InsType) -> ParseResult:
     while ptr < length:
         c = equation[ptr]
         # break on operator if we're not inside {...} or [...]
-        if not inside_brackets and _is_operator(c, ins_type):
+        if (
+            not inside_brackets
+            and _is_operator(c, ins_type)
+            and ptr + 1 < length
+            and not _is_operator(equation[ptr + 1], ins_type)
+        ):
+            # skip the next operator if it's a two-char operator
             break
         # track bracketed names like {FOO} or [BAR]
         if c in ('{', '['):
-            inside_brackets = True
+            # If the next char is a closing bracket, exit bracket mode and advance ptr
+            if ptr + 1 < length:
+                if equation[ptr + 1] not in ('}', ']'):
+                    inside_brackets = True
+            else:
+                ptr += 1
         elif inside_brackets and c in ('}', ']'):
             inside_brackets = False
         ptr += 1

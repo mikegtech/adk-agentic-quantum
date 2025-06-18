@@ -5,9 +5,8 @@ from jinja2 import Template
 
 from enterprise_rating.ast_decoder.ast_nodes import (ArithmeticNode,
                                                      AssignmentNode,
-                                                     CompareNode, FunctionNode,
-                                                     IfNode, JumpNode,
-                                                     MultiConditionNode)
+                                                     FunctionNode, IfNode,
+                                                     JumpNode)
 
 # Load once at module import
 with open(Path(__file__).parent / "templates.yml", encoding="utf-8") as f:
@@ -62,25 +61,37 @@ def render_node(node) -> str:
         if isinstance(node, JumpNode):
             return tpl.render(target=node.target).strip()
 
-        # 2) IfNode
+        # ANY IfNode, whether single‐ or multi‐clause:
         if isinstance(node, IfNode):
+            # grab either the multi‐list or fall back to single
             cond = node.condition
-            # 2a) Single condition
-            if isinstance(cond, CompareNode):
-                return tpl.render(
-                    left=cond.left.raw,
-                    operator=cond.operator,
-                    right=cond.right.raw,
-                    cond_op=getattr(cond, "cond_op", "") or ""
+            if cond is not None and hasattr(cond, "conditions"):
+                clauses = cond.conditions
+            else:
+                clauses = [cond] if cond is not None else []
+
+            return tpl.render(
+                conditions=[
+                    {
+                        "left":  c.left.value,
+                        "op":    c.operator,
+                        "right": c.right.value,
+                    }
+                    for c in clauses
+                ],
+                joiner=getattr(cond, "joiner", ""),
+                true_target=(
+                    node.true_branch[0].target
+                    if node.true_branch and isinstance(node.true_branch[0], JumpNode)
+                    else None
+                ),
+                false_target=(
+                    node.false_branch[0].target
+                    if node.false_branch and isinstance(node.false_branch[0], JumpNode)
+                    else None
                 )
-            # 2b) Multi-condition
-            if isinstance(cond, MultiConditionNode):
-                return tpl.render(
-                    conditions=cond.conditions,
-                    joiner=cond.joiner
-                )
-            # unexpected condition type
-            return getattr(node, "english", "") or ""
+            )
+
 
         # 3) ArithmeticNode: {{ left }}, {{ operator }}, {{ right }}, {{ round_spec }}
         if isinstance(node, ArithmeticNode):
@@ -107,6 +118,8 @@ def render_node(node) -> str:
                 "name":       "Arithmetic",
                 "args":       ", ".join(arg.value for arg in node.expr.args),
                 "round_spec": getattr(node, "round_spec", "") or "",
+                "next_true" : str(node.next_true and node.next_true[0].target),
+                "next_false": str(node.next_false and node.next_false[0].target),
             }
             return tpl.render(**ctx)
 

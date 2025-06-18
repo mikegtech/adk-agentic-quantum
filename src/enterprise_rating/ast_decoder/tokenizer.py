@@ -6,6 +6,7 @@ from collections.abc import Callable
 from typing import NamedTuple
 
 from enterprise_rating.ast_decoder.helpers.parse_result import find_next_var
+from enterprise_rating.ast_decoder.helpers.var_lookup import get_var_desc
 
 from .defs import InsType
 
@@ -87,7 +88,7 @@ def tokenize_all(raw: str) -> list[Token]:
     tokens = []
     for part in parts:
         if part in {'|','^','+','>=','<=','=','>','<','!R2','!RN','!RS','!','~','{','}','[',']'}:
-            tokens.append(Token(type='OP', value=part))
+            tokens.append(Token(type='OP', value=get_var_desc(part)))
         else:
             tokens.append(Token(type='WORD', value=part))
     return tokens
@@ -97,7 +98,7 @@ def tokenize_scan(raw: str, ins_type: InsType, ins_target: str | None) -> list[T
 
     if ins_target is not None:
         tokens.append(Token(type='TARGET', value=ins_target))
-        tokens.append(Token(type='OP', value="="))
+        tokens.append(Token(type='OP', value="=", description="[equals]"))
 
     ptr = 0
     while ptr < len(raw):
@@ -135,7 +136,7 @@ def tokenize_scan(raw: str, ins_type: InsType, ins_target: str | None) -> list[T
 # -----------------------------------------------------------------------------
 
 dispatch_map: dict[InsType, tuple[Callable, str]] = {
-    InsType.DEF_INS_TYPE_CALL:                (tokenize_pipe, "PIPE_DELIMITED"),
+    InsType.DEF_INS_TYPE_CALL:                (tokenize_scan, "PIPE_DELIMITED"),
     InsType.DEF_INS_TYPE_MASK:                (tokenize_pipe_first, "FIRST_PIPE_DELIMITED"),
 
     InsType.DEF_INS_TYPE_NUMERIC_IF:          (tokenize_multi_if, "IF"),
@@ -155,6 +156,7 @@ dispatch_map: dict[InsType, tuple[Callable, str]] = {
     InsType.INS_SUM_CURRENT_PATH:             (tokenize_plus, "PLUS_DELIMITED"),
 
     InsType.INS_STR_CONCAT:                   (tokenize_scan, "DEFAULT"),
+    InsType.SET_STRING:                       (tokenize_scan, "DEFAULT"),
 
     InsType.DATE_DIFF_DAYS:                   (tokenize_pipe, "PIPE_DELIMITED"),
     InsType.DATE_DIFF_MONTHS:                 (tokenize_pipe, "PIPE_DELIMITED"),
